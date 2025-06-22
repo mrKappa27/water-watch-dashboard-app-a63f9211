@@ -1,73 +1,84 @@
-# Welcome to your Lovable project
+# Water Watch Dashboard
 
-## Project info
+A modern, interactive dashboard for visualizing and forecasting water consumption and related metrics. Built with Vite, React, TypeScript, shadcn-ui, and Tailwind CSS.
 
-**URL**: https://lovable.dev/projects/8f0d50eb-3a94-4b46-8ff9-4a7d32982654
+## Features
 
-## How can I edit this code?
+- Upload and visualize water consumption data by location and metric
+- Interactive charts and tables
+- Forecasting with confidence intervals and anomaly detection
+- Responsive design for desktop and mobile
 
-There are several ways of editing your application.
+## Getting Started
 
-**Use Lovable**
+### Prerequisites
+- [Node.js](https://nodejs.org/) (v18 or newer recommended)
+- [npm](https://www.npmjs.com/) (comes with Node.js)
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/8f0d50eb-3a94-4b46-8ff9-4a7d32982654) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
+### Installation
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
+# Clone the repository
 git clone <YOUR_GIT_URL>
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+# Navigate to the project directory
+cd water-watch-dashboard-app-a63f9211
 
-# Step 3: Install the necessary dependencies.
-npm i
+# Install dependencies
+npm install
+```
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+### Development
+
+Start the development server with hot reloading:
+
+```sh
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+The app will be available at `http://localhost:8080` (or the port shown in your terminal).
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+### Building for Production
 
-**Use GitHub Codespaces**
+To build the app for production:
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+```sh
+npm run build
+```
 
-## What technologies are used for this project?
+The output will be in the `dist/` directory.
 
-This project is built with:
+### Preview Production Build
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+To locally preview the production build:
 
-## How can I deploy this project?
+```sh
+npm run preview
+```
 
-Simply open [Lovable](https://lovable.dev/projects/8f0d50eb-3a94-4b46-8ff9-4a7d32982654) and click on Share -> Publish.
+## Deployment
 
-## Can I connect a custom domain to my Lovable project?
+This project is ready for deployment to static hosting services such as GitHub Pages, Vercel, Netlify, or your own server.
 
-Yes, you can!
+### Deploying to GitHub Pages
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+1. Ensure the `base` option in `vite.config.ts` matches your repository name (already set for this project).
+2. Push your code to GitHub.
+3. GitHub Actions will automatically build and deploy your site to GitHub Pages on every push to the `main` branch.
+4. Enable GitHub Pages in your repository settings and set the source to "GitHub Actions".
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+## Technologies Used
+
+- [Vite](https://vitejs.dev/)
+- [React](https://react.dev/)
+- [TypeScript](https://www.typescriptlang.org/)
+- [shadcn/ui](https://ui.shadcn.com/)
+- [Tailwind CSS](https://tailwindcss.com/)
+
+## Contributing
+
+Contributions are welcome! Please open issues or submit pull requests for improvements and bug fixes.
+
+## License
+
+This project is licensed under the MIT License.
