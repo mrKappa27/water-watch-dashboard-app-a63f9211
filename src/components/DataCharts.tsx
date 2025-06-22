@@ -1,4 +1,3 @@
-
 import { useMemo, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
@@ -107,6 +106,17 @@ const DataCharts = ({ data }: DataChartsProps) => {
         ...prev[location],
         [param]: !prev[location]?.[param]
       }
+    }));
+  };
+
+  // Add function to toggle all params for a location
+  const toggleAllParams = (location: string, show: boolean) => {
+    setVisibleParams(prev => ({
+      ...prev,
+      [location]: chartData.numericParams.reduce((acc, param) => {
+        acc[param] = show;
+        return acc;
+      }, {} as Record<string, boolean>)
     }));
   };
 
@@ -273,7 +283,24 @@ const DataCharts = ({ data }: DataChartsProps) => {
 
               {/* Parameter toggles */}
               <div className="border rounded-lg p-4 bg-muted/50">
-                <h4 className="text-sm font-medium mb-3">Toggle Data Series:</h4>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-medium">Toggle Data Series:</h4>
+                  {/* Toggle all params button */}
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      const allVisible = chartData.numericParams.every(
+                        param => visibleParams[location]?.[param] ?? true
+                      );
+                      toggleAllParams(location, !allVisible);
+                    }}
+                  >
+                    {chartData.numericParams.every(
+                      param => visibleParams[location]?.[param] ?? true
+                    ) ? "Hide All" : "Show All"}
+                  </Button>
+                </div>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                   {chartData.numericParams.map((param) => (
                     <div key={param} className="flex items-center space-x-2">
