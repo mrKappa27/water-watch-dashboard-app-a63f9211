@@ -162,6 +162,13 @@ const FileUpload = ({ onDataParsed }: FileUploadProps) => {
         });
       }
 
+      // Sort by datetime ASC before passing to onDataParsed
+      allParsedData.sort((a, b) => {
+        const aTime = a.datetime instanceof Date ? a.datetime.getTime() : new Date(a.datetime).getTime();
+        const bTime = b.datetime instanceof Date ? b.datetime.getTime() : new Date(b.datetime).getTime();
+        return aTime - bTime;
+      });
+
       console.log('Total parsed data points:', allParsedData.length);
       onDataParsed(allParsedData);
       setSelectedFiles([]);
