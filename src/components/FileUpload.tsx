@@ -19,22 +19,48 @@ const FileUpload = ({ onDataParsed }: FileUploadProps) => {
     const lines = content.trim().split('\n');
     if (lines.length < 2) return [];
 
-    const headers = lines[0].split(',').map(h => h.trim());
+    const headers = lines[0].split(';').map(h => h.trim().replace(/"/g, ''));
     const data = [];
 
+    console.log('Headers found:', headers);
+
     for (let i = 1; i < lines.length; i++) {
-      const values = lines[i].split(',').map(v => v.trim());
+      const values = lines[i].split(';').map(v => v.trim().replace(/"/g, ''));
       if (values.length === headers.length) {
         const row: Record<string, any> = {};
+        
         headers.forEach((header, index) => {
           const value = values[index];
-          // Try to parse as number, otherwise keep as string
-          const numValue = parseFloat(value);
-          row[header] = isNaN(numValue) ? value : numValue;
+          const headerUpper = header.toUpperCase();
+          
+          // Parse based on known column types
+          if (headerUpper === 'INDEX') {
+            row[header] = parseInt(value) || 0;
+          } else if (headerUpper === 'TYPE') {
+            row[header] = value; // Keep as string
+          } else if (headerUpper === 'TIME') {
+            // Try to parse as datetime
+            const dateValue = new Date(value);
+            row[header] = isNaN(dateValue.getTime()) ? value : dateValue.toISOString();
+          } else if (headerUpper.startsWith('DIN') || headerUpper.startsWith('DOUT')) {
+            // Boolean values - check for 1/0, true/false, on/off
+            const lowerValue = value.toLowerCase();
+            row[header] = lowerValue === '1' || lowerValue === 'true' || lowerValue === 'on' || lowerValue === 'yes';
+          } else if (headerUpper.startsWith('TOT') || headerUpper.startsWith('CNT') || headerUpper.startsWith('DELTA')) {
+            // Integer values for water meter data
+            row[header] = parseInt(value) || 0;
+          } else {
+            // Try to parse as number, otherwise keep as string
+            const numValue = parseFloat(value);
+            row[header] = isNaN(numValue) ? value : numValue;
+          }
         });
+        
         data.push(row);
       }
     }
+    
+    console.log('Parsed data sample:', data.slice(0, 3));
     return data;
   };
 
@@ -59,6 +85,7 @@ const FileUpload = ({ onDataParsed }: FileUploadProps) => {
       const formats = [
         datetimeStr.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3'),
         datetimeStr.replace(/(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})/, '$1-$2-$3T$4:$5'),
+        datetimeStr.replace(/(\d{4})-(\d{2})-(\d{2})/, '$1-$2-$3'),
         datetimeStr
       ];
       
@@ -83,21 +110,37 @@ const FileUpload = ({ onDataParsed }: FileUploadProps) => {
 
     try {
       for (const file of selectedFiles) {
+        console.log('Processing file:', file.name);
         const content = await file.text();
         const csvData = parseCSV(content);
         const { location, datetime } = extractLocationAndDatetime(file.name);
 
+        console.log(`File ${file.name}: location=${location}, datetime=${datetime.toISOString()}, rows=${csvData.length}`);
+
         csvData.forEach((row, index) => {
+          // Use the TIME column from the CSV if available, otherwise use file datetime
+          let rowDatetime = datetime;
+          if (row.TIME || row.time || row.Time) {
+            const timeValue = row.TIME || row.time || row.Time;
+            if (typeof timeValue === 'string' && timeValue !== datetime.toISOString()) {
+              const parsedTime = new Date(timeValue);
+              if (!isNaN(parsedTime.getTime())) {
+                rowDatetime = parsedTime;
+              }
+            }
+          }
+
           allParsedData.push({
             id: `${file.name}-${index}`,
             location,
-            datetime,
+            datetime: rowDatetime,
             filename: file.name,
             values: row
           });
         });
       }
 
+      console.log('Total parsed data points:', allParsedData.length);
       onDataParsed(allParsedData);
       setSelectedFiles([]);
       
