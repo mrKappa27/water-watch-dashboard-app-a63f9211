@@ -66,6 +66,9 @@ const FileUpload = ({ onDataParsed }: FileUploadProps) => {
 
   const extractLocationAndDatetime = (filename: string) => {
     const nameWithoutExt = filename.replace(/\.[^/.]+$/, "");
+    
+    // Handle filenames like "ennioRio_log20250620150010.csv"
+    // Extract location before first underscore, then remove "log" prefix from datetime part
     const underscoreIndex = nameWithoutExt.indexOf('_');
     
     if (underscoreIndex === -1) {
@@ -76,13 +79,19 @@ const FileUpload = ({ onDataParsed }: FileUploadProps) => {
     }
 
     const location = nameWithoutExt.substring(0, underscoreIndex);
-    const datetimeStr = nameWithoutExt.substring(underscoreIndex + 1);
+    let datetimeStr = nameWithoutExt.substring(underscoreIndex + 1);
+    
+    // Remove "log" prefix if present
+    if (datetimeStr.toLowerCase().startsWith('log')) {
+      datetimeStr = datetimeStr.substring(3);
+    }
     
     // Try to parse datetime string
     let datetime = new Date(datetimeStr);
     if (isNaN(datetime.getTime())) {
       // If direct parsing fails, try common formats
       const formats = [
+        datetimeStr.replace(/(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/, '$1-$2-$3T$4:$5:$6'),
         datetimeStr.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3'),
         datetimeStr.replace(/(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})/, '$1-$2-$3T$4:$5'),
         datetimeStr.replace(/(\d{4})-(\d{2})-(\d{2})/, '$1-$2-$3'),

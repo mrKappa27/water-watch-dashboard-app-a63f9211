@@ -1,8 +1,9 @@
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { Checkbox } from "@/components/ui/checkbox";
 import { ParsedDataPoint } from "@/types/dataTypes";
 
 interface DataChartsProps {
@@ -67,6 +68,18 @@ const DataCharts = ({ data }: DataChartsProps) => {
     };
   }, [data]);
 
+  // State to track which parameters are visible for each location
+  const [visibleParams, setVisibleParams] = useState<Record<string, Record<string, boolean>>>(() => {
+    const initial: Record<string, Record<string, boolean>> = {};
+    Object.keys(chartData.timeSeriesData).forEach(location => {
+      initial[location] = {};
+      chartData.numericParams.forEach(param => {
+        initial[location][param] = true; // All visible by default
+      });
+    });
+    return initial;
+  });
+
   const chartConfig = useMemo(() => {
     const config: Record<string, { label: string; color: string }> = {};
     chartData.numericParams.forEach((param, index) => {
@@ -77,6 +90,16 @@ const DataCharts = ({ data }: DataChartsProps) => {
     });
     return config;
   }, [chartData.numericParams]);
+
+  const toggleParam = (location: string, param: string) => {
+    setVisibleParams(prev => ({
+      ...prev,
+      [location]: {
+        ...prev[location],
+        [param]: !prev[location]?.[param]
+      }
+    }));
+  };
 
   if (data.length === 0) {
     return (
@@ -150,34 +173,63 @@ const DataCharts = ({ data }: DataChartsProps) => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ChartContainer config={chartConfig} className="h-[400px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={locationData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis 
-                    dataKey="date"
-                    type="category"
-                    tickFormatter={(value) => new Date(value).toLocaleDateString()}
-                  />
-                  <YAxis />
-                  <ChartTooltip 
-                    content={<ChartTooltipContent />}
-                    labelFormatter={(value) => new Date(value).toLocaleDateString()}
-                  />
-                  {chartData.numericParams.slice(0, 5).map((param, index) => (
-                    <Line
-                      key={param}
-                      type="monotone"
-                      dataKey={param}
-                      stroke={COLORS[index % COLORS.length]}
-                      strokeWidth={2}
-                      dot={{ r: 3 }}
-                      connectNulls={false}
-                    />
+            <div className="space-y-4">
+              {/* Parameter toggles */}
+              <div className="border rounded-lg p-4 bg-muted/50">
+                <h4 className="text-sm font-medium mb-3">Toggle Data Series:</h4>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {chartData.numericParams.map((param) => (
+                    <div key={param} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`${location}-${param}`}
+                        checked={visibleParams[location]?.[param] ?? true}
+                        onCheckedChange={() => toggleParam(location, param)}
+                      />
+                      <label
+                        htmlFor={`${location}-${param}`}
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                        style={{ color: COLORS[chartData.numericParams.indexOf(param) % COLORS.length] }}
+                      >
+                        {param}
+                      </label>
+                    </div>
                   ))}
-                </LineChart>
-              </ResponsiveContainer>
-            </ChartContainer>
+                </div>
+              </div>
+
+              {/* Chart */}
+              <ChartContainer config={chartConfig} className="h-[400px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={locationData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis 
+                      dataKey="date"
+                      type="category"
+                      tickFormatter={(value) => new Date(value).toLocaleDateString()}
+                    />
+                    <YAxis />
+                    <ChartTooltip 
+                      content={<ChartTooltipContent />}
+                      labelFormatter={(value) => new Date(value).toLocaleDateString()}
+                    />
+                    {chartData.numericParams.map((param, index) => {
+                      const isVisible = visibleParams[location]?.[param] ?? true;
+                      return isVisible ? (
+                        <Line
+                          key={param}
+                          type="monotone"
+                          dataKey={param}
+                          stroke={COLORS[index % COLORS.length]}
+                          strokeWidth={2}
+                          dot={{ r: 3 }}
+                          connectNulls={false}
+                        />
+                      ) : null;
+                    })}
+                  </LineChart>
+                </ResponsiveContainer>
+              </ChartContainer>
+            </div>
           </CardContent>
         </Card>
       ))}
