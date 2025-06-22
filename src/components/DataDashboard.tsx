@@ -1,13 +1,13 @@
-
 import { useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BarChart, LineChart, PieChart, Trash2, TrendingUp } from 'lucide-react';
+import { BarChart, LineChart, PieChart, Trash2, TrendingUp, Table } from 'lucide-react';
 import { ParsedDataPoint, LocationStats } from "@/types/dataTypes";
 import StatsOverview from "@/components/StatsOverview";
 import DataCharts from "@/components/DataCharts";
+import DataTable from "@/components/DataTable";
 import ForecastingPanel from "@/components/ForecastingPanel";
 
 interface DataDashboardProps {
@@ -123,9 +123,10 @@ const DataDashboard = ({ data, onClearData }: DataDashboardProps) => {
       </div>
 
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="charts">Charts</TabsTrigger>
+          <TabsTrigger value="table">Data Table</TabsTrigger>
           <TabsTrigger value="forecasting">Forecasting</TabsTrigger>
         </TabsList>
 
@@ -135,6 +136,10 @@ const DataDashboard = ({ data, onClearData }: DataDashboardProps) => {
 
         <TabsContent value="charts" className="mt-6">
           <DataCharts data={data} />
+        </TabsContent>
+
+        <TabsContent value="table" className="mt-6">
+          <DataTable data={data} />
         </TabsContent>
 
         <TabsContent value="forecasting" className="mt-6">

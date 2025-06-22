@@ -1,3 +1,4 @@
+
 import { useMemo, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
@@ -33,10 +34,10 @@ const DataCharts = ({ data }: DataChartsProps) => {
         timeSeriesData[location] = [];
       }
       
-      // Find numeric values to chart
+      // Find numeric values to chart (exclude timestamp-related fields)
       const numericValues: Record<string, number> = {};
       Object.entries(point.values).forEach(([key, value]) => {
-        if (typeof value === 'number') {
+        if (typeof value === 'number' && !key.toLowerCase().includes('time') && !key.toLowerCase().includes('index')) {
           numericValues[key] = value;
         }
       });
@@ -55,11 +56,11 @@ const DataCharts = ({ data }: DataChartsProps) => {
       value: count
     }));
 
-    // Get all numeric parameters
+    // Get all numeric parameters (excluding timestamp-related fields)
     const numericParams = new Set<string>();
     data.forEach(point => {
       Object.entries(point.values).forEach(([key, value]) => {
-        if (typeof value === 'number') {
+        if (typeof value === 'number' && !key.toLowerCase().includes('time') && !key.toLowerCase().includes('index')) {
           numericParams.add(key);
         }
       });
@@ -130,14 +131,18 @@ const DataCharts = ({ data }: DataChartsProps) => {
     }));
   };
 
-  // Custom tooltip component
+  // Custom tooltip component with dynamic timestamp
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (!active || !payload?.length) return null;
+
+    // Get the actual data point from payload to access the full timestamp
+    const dataPoint = payload[0]?.payload;
+    const timestamp = dataPoint?.fullTimestamp || new Date(label).toLocaleString();
 
     return (
       <div className="bg-background border border-border rounded-lg p-3 shadow-lg">
         <p className="font-medium text-sm mb-2">
-          {payload[0]?.payload?.fullTimestamp || new Date(label).toLocaleString()}
+          {timestamp}
         </p>
         <div className="space-y-1">
           {payload.map((entry: any, index: number) => (
