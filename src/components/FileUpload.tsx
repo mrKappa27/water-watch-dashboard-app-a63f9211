@@ -32,21 +32,17 @@ const FileUpload = ({ onDataParsed }: FileUploadProps) => {
         headers.forEach((header, index) => {
           const value = values[index];
           const headerUpper = header.toUpperCase();
-          
-          // Parse based on known column types
+
           if (headerUpper === 'INDEX') {
             row[header] = parseInt(value) || 0;
-          } else if (headerUpper === 'TYPE' || headerUpper === 'TRIGGER' ) {
-            row[header] = value; // Keep as string
-          } else if (headerUpper === 'TIME' || headerUpper === 'TIMESTAMP' ) {
-            // Add logging for debugging
-            console.log(`[parseCSV] Parsing TIME/TIMESTAMP:`, value);
-
-            // Try to parse as "DD/MM/YYYY HH:mm:ss"
+          } else if (headerUpper === 'TYPE' || headerUpper === 'TRIGGER') {
+            row[header] = value;
+          } else if (headerUpper === 'TIME' || headerUpper === 'TIMESTAMP') {
+            // Parse "DD/MM/YYYY HH:mm:ss" format
             const match = /^(\d{2})\/(\d{2})\/(\d{4}) (\d{2}):(\d{2}):(\d{2})$/.exec(value);
             if (match) {
               const [_, day, month, year, hour, minute, second] = match;
-              const parsedDate = new Date(
+              row[header] = new Date(
                 Number(year),
                 Number(month) - 1,
                 Number(day),
@@ -54,28 +50,24 @@ const FileUpload = ({ onDataParsed }: FileUploadProps) => {
                 Number(minute),
                 Number(second)
               );
-              console.log(`[parseCSV] Matched custom format. Parsed Date:`, parsedDate.toISOString());
-              row[header] = parsedDate;
             } else {
-              // Fallback to native Date parsing
               const dateValue = new Date(value);
-              if (!isNaN(dateValue.getTime())) {
-                console.log(`[parseCSV] Native Date parse succeeded:`, dateValue.toISOString());
-                row[header] = dateValue;
-              } else {
-                console.log(`[parseCSV] Failed to parse date, keeping original value:`, value);
-                row[header] = value;
-              }
+              row[header] = isNaN(dateValue.getTime()) ? value : dateValue;
             }
           } else if (headerUpper.startsWith('DIN') || headerUpper.startsWith('DOUT')) {
-            // Boolean values - check for 1/0, true/false, on/off
             const lowerValue = value.toLowerCase();
-            row[header] = lowerValue === '1' || lowerValue === 'true' || lowerValue === 'on' || lowerValue === 'yes';
-          } else if (headerUpper.startsWith('TOT') || headerUpper.startsWith('CNT') || headerUpper.startsWith('DELTA')) {
-            // Integer values for water meter data
+            row[header] =
+              lowerValue === '1' ||
+              lowerValue === 'true' ||
+              lowerValue === 'on' ||
+              lowerValue === 'yes';
+          } else if (
+            headerUpper.startsWith('TOT') ||
+            headerUpper.startsWith('CNT') ||
+            headerUpper.startsWith('DELTA')
+          ) {
             row[header] = parseInt(value) || 0;
           } else {
-            // Try to parse as number, otherwise keep as string
             const numValue = parseFloat(value);
             row[header] = isNaN(numValue) ? value : numValue;
           }
@@ -152,21 +144,12 @@ const FileUpload = ({ onDataParsed }: FileUploadProps) => {
         console.log(`File ${file.name}: location=${location}, datetime=${datetime.toISOString()}, rows=${csvData.length}`);
 
         csvData.forEach((row, index) => {
-          // Find the timestamp field in a case-insensitive way
           const timestampKey = Object.keys(row).find(
             k => k.toLowerCase() === 'timestamp' || k.toLowerCase() === 'time'
           );
           let rowDatetime = datetime;
-          if (timestampKey && row[timestampKey]) {
-            const tsValue = row[timestampKey];
-            if (tsValue instanceof Date && !isNaN(tsValue.getTime())) {
-              rowDatetime = tsValue;
-              console.log(`[processFiles] Using row timestamp for row ${index}:`, tsValue.toISOString());
-            } else {
-              console.log(`[processFiles] Row timestamp invalid for row ${index}, using file timestamp.`);
-            }
-          } else {
-            console.log(`[processFiles] No row timestamp found for row ${index}, using file timestamp.`);
+          if (timestampKey && row[timestampKey] instanceof Date && !isNaN(row[timestampKey].getTime())) {
+            rowDatetime = row[timestampKey];
           }
 
           allParsedData.push({
