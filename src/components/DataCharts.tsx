@@ -1,9 +1,12 @@
-
 import { useMemo, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Settings } from 'lucide-react';
 import { ParsedDataPoint } from "@/types/dataTypes";
 
 interface DataChartsProps {
@@ -41,6 +44,7 @@ const DataCharts = ({ data }: DataChartsProps) => {
       timeSeriesData[location].push({
         date: dateKey,
         datetime: point.datetime,
+        fullTimestamp: point.datetime.toLocaleString(),
         ...numericValues
       });
     });
@@ -80,6 +84,10 @@ const DataCharts = ({ data }: DataChartsProps) => {
     return initial;
   });
 
+  // State for column aliases per location
+  const [columnAliases, setColumnAliases] = useState<Record<string, Record<string, string>>>({});
+  const [showAliasSettings, setShowAliasSettings] = useState<Record<string, boolean>>({});
+
   const chartConfig = useMemo(() => {
     const config: Record<string, { label: string; color: string }> = {};
     chartData.numericParams.forEach((param, index) => {
@@ -101,6 +109,56 @@ const DataCharts = ({ data }: DataChartsProps) => {
     }));
   };
 
+  const getColumnDisplayName = (location: string, column: string) => {
+    return columnAliases[location]?.[column] || column;
+  };
+
+  const setColumnAlias = (location: string, column: string, alias: string) => {
+    setColumnAliases(prev => ({
+      ...prev,
+      [location]: {
+        ...prev[location],
+        [column]: alias
+      }
+    }));
+  };
+
+  const toggleAliasSettings = (location: string) => {
+    setShowAliasSettings(prev => ({
+      ...prev,
+      [location]: !prev[location]
+    }));
+  };
+
+  // Custom tooltip component
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (!active || !payload?.length) return null;
+
+    return (
+      <div className="bg-background border border-border rounded-lg p-3 shadow-lg">
+        <p className="font-medium text-sm mb-2">
+          {payload[0]?.payload?.fullTimestamp || new Date(label).toLocaleString()}
+        </p>
+        <div className="space-y-1">
+          {payload.map((entry: any, index: number) => (
+            <div key={index} className="flex items-center gap-2 text-sm">
+              <div 
+                className="w-3 h-3 rounded-sm" 
+                style={{ backgroundColor: entry.color }}
+              />
+              <span className="text-muted-foreground">
+                {entry.name}:
+              </span>
+              <span className="font-medium">
+                {typeof entry.value === 'number' ? entry.value.toLocaleString() : entry.value}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   if (data.length === 0) {
     return (
       <div className="text-center py-8">
@@ -111,6 +169,7 @@ const DataCharts = ({ data }: DataChartsProps) => {
 
   return (
     <div className="space-y-6">
+      {/* ... keep existing code (pie chart and bar chart sections) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
@@ -167,13 +226,46 @@ const DataCharts = ({ data }: DataChartsProps) => {
       {Object.entries(chartData.timeSeriesData).map(([location, locationData]) => (
         <Card key={location}>
           <CardHeader>
-            <CardTitle>Time Series Data - {location}</CardTitle>
+            <CardTitle className="flex items-center justify-between">
+              <span>Time Series Data - {location}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => toggleAliasSettings(location)}
+              >
+                <Settings className="w-4 h-4 mr-2" />
+                Column Settings
+              </Button>
+            </CardTitle>
             <CardDescription>
               Trends over time for numeric parameters at {location}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
+              {/* Column alias settings */}
+              {showAliasSettings[location] && (
+                <div className="border rounded-lg p-4 bg-muted/50">
+                  <h4 className="text-sm font-medium mb-3">Column Aliases:</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {chartData.numericParams.map((param) => (
+                      <div key={param} className="space-y-1">
+                        <Label htmlFor={`alias-${location}-${param}`} className="text-xs">
+                          {param}
+                        </Label>
+                        <Input
+                          id={`alias-${location}-${param}`}
+                          placeholder={param}
+                          value={columnAliases[location]?.[param] || ''}
+                          onChange={(e) => setColumnAlias(location, param, e.target.value)}
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Parameter toggles */}
               <div className="border rounded-lg p-4 bg-muted/50">
                 <h4 className="text-sm font-medium mb-3">Toggle Data Series:</h4>
@@ -190,7 +282,7 @@ const DataCharts = ({ data }: DataChartsProps) => {
                         className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                         style={{ color: COLORS[chartData.numericParams.indexOf(param) % COLORS.length] }}
                       >
-                        {param}
+                        {getColumnDisplayName(location, param)}
                       </label>
                     </div>
                   ))}
@@ -208,10 +300,7 @@ const DataCharts = ({ data }: DataChartsProps) => {
                       tickFormatter={(value) => new Date(value).toLocaleDateString()}
                     />
                     <YAxis />
-                    <ChartTooltip 
-                      content={<ChartTooltipContent />}
-                      labelFormatter={(value) => new Date(value).toLocaleDateString()}
-                    />
+                    <ChartTooltip content={<CustomTooltip />} />
                     {chartData.numericParams.map((param, index) => {
                       const isVisible = visibleParams[location]?.[param] ?? true;
                       return isVisible ? (
@@ -219,6 +308,7 @@ const DataCharts = ({ data }: DataChartsProps) => {
                           key={param}
                           type="monotone"
                           dataKey={param}
+                          name={getColumnDisplayName(location, param)}
                           stroke={COLORS[index % COLORS.length]}
                           strokeWidth={2}
                           dot={{ r: 3 }}
