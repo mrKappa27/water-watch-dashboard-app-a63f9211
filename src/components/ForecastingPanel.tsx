@@ -1,4 +1,3 @@
-
 import { useState, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,7 +5,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from 'recharts';
 import { TrendingUp, Calculator } from 'lucide-react';
-import { ParsedDataPoint, ForecastPoint } from "@/types/dataTypes";
+import { ParsedDataPoint } from "@/types/dataTypes";
+// Import core forecasting functions
+import {
+  generateWaterConsumptionForecast,
+  detectAnomalies
+} from "c:/Users/K/Downloads/water_forecasting_core.js";
 
 interface ForecastingPanelProps {
   data: ParsedDataPoint[];
@@ -14,103 +18,95 @@ interface ForecastingPanelProps {
 
 const ForecastingPanel = ({ data }: ForecastingPanelProps) => {
   const [selectedLocation, setSelectedLocation] = useState<string>('');
-  const [selectedParameter, setSelectedParameter] = useState<string>('');
-  const [forecastData, setForecastData] = useState<ForecastPoint[]>([]);
+  const [selectedMetric, setSelectedMetric] = useState<string>('');
+  const [forecastHorizon, setForecastHorizon] = useState(24); // in hours
+  const [forecastResult, setForecastResult] = useState<any>(null);
+  const [anomalies, setAnomalies] = useState<any[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
 
+  // Get unique locations
   const locations = useMemo(() => {
     return Array.from(new Set(data.map(d => d.location)));
   }, [data]);
 
-  const parameters = useMemo(() => {
-    const params = new Set<string>();
+  // Get all numeric metrics/parameters from the parsed data
+  const metrics = useMemo(() => {
+    const set = new Set<string>();
     data.forEach(point => {
       Object.entries(point.values).forEach(([key, value]) => {
-        if (typeof value === 'number') {
-          params.add(key);
+        if (typeof value === 'number' && !key.toLowerCase().includes('index')) {
+          set.add(key);
         }
       });
     });
-    return Array.from(params);
+    return Array.from(set);
   }, [data]);
 
-  const historicalData = useMemo(() => {
-    if (!selectedLocation || !selectedParameter) return [];
-
+  // Prepare data for the selected location and metric
+  const coreData = useMemo(() => {
+    if (!selectedLocation || !selectedMetric) return [];
     return data
       .filter(d => d.location === selectedLocation)
       .map(d => ({
-        datetime: d.datetime,
-        value: d.values[selectedParameter] as number
-      }))
-      .filter(d => typeof d.value === 'number')
-      .sort((a, b) => a.datetime.getTime() - b.datetime.getTime());
-  }, [data, selectedLocation, selectedParameter]);
+        timestamp: d.datetime,
+        value: Number(d.values[selectedMetric]) || 0
+      }));
+  }, [data, selectedLocation, selectedMetric]);
 
-  const generateSimpleForecast = () => {
-    if (historicalData.length < 3) return [];
-
+  // Generate forecast using the core, adapting to generic metric
+  const handleForecast = () => {
+    if (coreData.length < 3) return;
     setIsGenerating(true);
-    
-    // Simple linear regression forecast
-    const n = historicalData.length;
-    const lastDate = historicalData[n - 1].datetime;
-    
-    // Calculate trend
-    const xValues = historicalData.map((_, i) => i);
-    const yValues = historicalData.map(d => d.value);
-    
-    const sumX = xValues.reduce((a, b) => a + b, 0);
-    const sumY = yValues.reduce((a, b) => a + b, 0);
-    const sumXY = xValues.reduce((sum, x, i) => sum + x * yValues[i], 0);
-    const sumXX = xValues.reduce((sum, x) => sum + x * x, 0);
-    
-    const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
-    const intercept = (sumY - slope * sumX) / n;
-    
-    // Generate forecast points (next 7 days)
-    const forecast: ForecastPoint[] = [];
-    for (let i = 1; i <= 7; i++) {
-      const forecastDate = new Date(lastDate);
-      forecastDate.setDate(forecastDate.getDate() + i);
-      
-      const forecastValue = slope * (n + i - 1) + intercept;
-      
-      forecast.push({
-        datetime: forecastDate,
-        value: Math.max(0, forecastValue), // Ensure non-negative
-        confidence: Math.max(0.5, 1 - (i * 0.1)) // Decreasing confidence
-      });
-    }
-    
     setTimeout(() => {
-      setForecastData(forecast);
+      try {
+        // Adapt coreData to the expected format for the core
+        const adaptedCoreData = coreData.map(d => ({
+          timestamp: d.timestamp,
+          deltas: [d.value], // single metric as first meter
+          totals: [0]
+        }));
+        const result = generateWaterConsumptionForecast(adaptedCoreData, {
+          forecastHours: forecastHorizon,
+          meterIndex: 0,
+          useTemperature: false,
+          confidenceLevel: 0.9
+        });
+        setForecastResult(result);
+        setAnomalies(detectAnomalies(adaptedCoreData, 0, 2.5));
+      } catch (e) {
+        setForecastResult(null);
+        setAnomalies([]);
+      }
       setIsGenerating(false);
-    }, 1000);
+    }, 300);
   };
 
+  // Prepare chart data
   const combinedChartData = useMemo(() => {
-    const historical = historicalData.map(d => ({
-      datetime: d.datetime.getTime(),
-      historical: d.value,
-      forecast: null,
-      date: d.datetime.toLocaleDateString()
+    if (!forecastResult) return [];
+    // Historical
+    const historical = coreData.map(d => ({
+      datetime: d.timestamp.getTime(),
+      value: d.value,
+      type: "historical",
+      date: d.timestamp.toLocaleString()
     }));
-
-    const forecast = forecastData.map(d => ({
-      datetime: d.datetime.getTime(),
-      historical: null,
-      forecast: d.value,
-      date: d.datetime.toLocaleDateString(),
-      confidence: d.confidence
+    // Forecast
+    const forecast = forecastResult.forecast.map((f: any) => ({
+      datetime: f.timestamp.getTime(),
+      value: f.predicted,
+      upper: f.upperBound,
+      lower: f.lowerBound,
+      type: "forecast",
+      date: f.timestamp.toLocaleString()
     }));
-
     return [...historical, ...forecast].sort((a, b) => a.datetime - b.datetime);
-  }, [historicalData, forecastData]);
+  }, [coreData, forecastResult]);
 
   const chartConfig = {
-    historical: { label: "Historical", color: "#0088FE" },
-    forecast: { label: "Forecast", color: "#FF8042" }
+    value: { label: "Value", color: "#0088FE" },
+    upper: { label: "Upper Bound", color: "#82CA9D" },
+    lower: { label: "Lower Bound", color: "#FFBB28" }
   };
 
   return (
@@ -122,11 +118,11 @@ const ForecastingPanel = ({ data }: ForecastingPanelProps) => {
             Forecasting Panel
           </CardTitle>
           <CardDescription>
-            Generate simple forecasts based on historical trends
+            Forecast any numeric metric for each location, with confidence intervals and anomaly detection.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
             <div>
               <label className="text-sm font-medium mb-2 block">Location</label>
               <Select value={selectedLocation} onValueChange={setSelectedLocation}>
@@ -142,27 +138,38 @@ const ForecastingPanel = ({ data }: ForecastingPanelProps) => {
                 </SelectContent>
               </Select>
             </div>
-
             <div>
-              <label className="text-sm font-medium mb-2 block">Parameter</label>
-              <Select value={selectedParameter} onValueChange={setSelectedParameter}>
+              <label className="text-sm font-medium mb-2 block">Metric</label>
+              <Select value={selectedMetric} onValueChange={setSelectedMetric}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select parameter" />
+                  <SelectValue placeholder="Select metric" />
                 </SelectTrigger>
                 <SelectContent>
-                  {parameters.map(param => (
-                    <SelectItem key={param} value={param}>
-                      {param}
+                  {metrics.map(metric => (
+                    <SelectItem key={metric} value={metric}>
+                      {metric}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-
+            <div>
+              <label className="text-sm font-medium mb-2 block">Forecast Horizon (hours)</label>
+              <Select value={forecastHorizon.toString()} onValueChange={v => setForecastHorizon(Number(v))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Forecast horizon" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="24">1 Day</SelectItem>
+                  <SelectItem value="48">2 Days</SelectItem>
+                  <SelectItem value="72">3 Days</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div className="flex items-end">
-              <Button 
-                onClick={generateSimpleForecast}
-                disabled={!selectedLocation || !selectedParameter || historicalData.length < 3 || isGenerating}
+              <Button
+                onClick={handleForecast}
+                disabled={!selectedLocation || !selectedMetric || coreData.length < 3 || isGenerating}
                 className="w-full"
               >
                 {isGenerating ? (
@@ -176,10 +183,9 @@ const ForecastingPanel = ({ data }: ForecastingPanelProps) => {
               </Button>
             </div>
           </div>
-
-          {historicalData.length < 3 && selectedLocation && selectedParameter && (
+          {coreData.length < 3 && selectedLocation && selectedMetric && (
             <div className="text-sm text-muted-foreground p-4 bg-muted rounded">
-              Need at least 3 data points to generate a forecast. Currently have {historicalData.length} points.
+              Need at least 3 data points to generate a forecast. Currently have {coreData.length} points.
             </div>
           )}
         </CardContent>
@@ -190,7 +196,7 @@ const ForecastingPanel = ({ data }: ForecastingPanelProps) => {
           <CardHeader>
             <CardTitle>Historical Data & Forecast</CardTitle>
             <CardDescription>
-              {selectedParameter} at {selectedLocation} with 7-day forecast
+              {selectedMetric} at {selectedLocation} with {forecastHorizon}-hour forecast
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -198,17 +204,16 @@ const ForecastingPanel = ({ data }: ForecastingPanelProps) => {
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={combinedChartData}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis 
+                  <XAxis
                     dataKey="date"
                     type="category"
+                    tickFormatter={(value) => value}
                   />
                   <YAxis />
-                  <ChartTooltip 
-                    content={<ChartTooltipContent />}
-                  />
+                  <ChartTooltip content={<ChartTooltipContent />} />
                   <Line
                     type="monotone"
-                    dataKey="historical"
+                    dataKey="value"
                     stroke="#0088FE"
                     strokeWidth={2}
                     dot={{ r: 3 }}
@@ -216,11 +221,18 @@ const ForecastingPanel = ({ data }: ForecastingPanelProps) => {
                   />
                   <Line
                     type="monotone"
-                    dataKey="forecast"
-                    stroke="#FF8042"
-                    strokeWidth={2}
-                    strokeDasharray="5 5"
-                    dot={{ r: 3 }}
+                    dataKey="upper"
+                    stroke="#82CA9D"
+                    strokeWidth={1}
+                    dot={false}
+                    connectNulls={false}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="lower"
+                    stroke="#FFBB28"
+                    strokeWidth={1}
+                    dot={false}
                     connectNulls={false}
                   />
                 </LineChart>
@@ -230,27 +242,55 @@ const ForecastingPanel = ({ data }: ForecastingPanelProps) => {
         </Card>
       )}
 
-      {forecastData.length > 0 && (
+      {forecastResult && (
         <Card>
           <CardHeader>
             <CardTitle>Forecast Details</CardTitle>
-            <CardDescription>7-day forecast with confidence levels</CardDescription>
+            <CardDescription>
+              {forecastHorizon}-hour forecast with confidence levels and trend: <b>{forecastResult.metadata.trend.direction}</b>
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {forecastData.map((point, index) => (
+              {forecastResult.forecast.map((point: any, index: number) => (
                 <div key={index} className="flex justify-between items-center p-3 border rounded">
                   <div>
-                    <span className="font-medium">{point.datetime.toLocaleDateString()}</span>
-                    <span className="text-sm text-muted-foreground ml-2">
-                      {point.datetime.toLocaleDateString('en-US', { weekday: 'short' })}
-                    </span>
+                    <span className="font-medium">{point.timestamp.toLocaleString()}</span>
                   </div>
                   <div className="text-right">
-                    <div className="font-medium">{point.value.toFixed(2)}</div>
-                    <div className="text-sm text-muted-foreground">
-                      {((point.confidence || 0) * 100).toFixed(0)}% confidence
+                    <div className="font-medium">{point.predicted.toFixed(2)}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {((forecastResult.metadata.confidence || 0) * 100).toFixed(0)}% confidence
+                      &nbsp;| Range: {point.lowerBound.toFixed(2)} - {point.upperBound.toFixed(2)}
                     </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {anomalies.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Anomaly Detection</CardTitle>
+            <CardDescription>
+              Detected {anomalies.length} anomalies for {selectedMetric} at {selectedLocation}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {anomalies.map((a, idx) => (
+                <div key={idx} className="flex justify-between items-center p-3 border rounded bg-red-50">
+                  <div>
+                    <span className="font-medium">{a.timestamp.toLocaleString()}</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="font-medium">{a.value}</span>
+                    <span className="ml-2 text-xs text-muted-foreground">
+                      {a.type} (z={a.zScore.toFixed(2)})
+                    </span>
                   </div>
                 </div>
               ))}
