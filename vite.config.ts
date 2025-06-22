@@ -5,6 +5,7 @@ import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  base: '/water-watch-dashboard-app-a63f9211/', // Set base for GitHub Pages
   server: {
     host: "::",
     port: 8080,
