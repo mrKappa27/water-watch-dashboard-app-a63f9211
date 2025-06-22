@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
@@ -173,6 +173,44 @@ const DataCharts = ({ data }: DataChartsProps) => {
       </div>
     );
   };
+
+  // Compute daily minimum for DELTA1-4 per location, focusing on 2AM-5AM
+  const dailyNightMinStats = useMemo(() => {
+    // { [location]: { [date]: { delta1: min, delta2: min, ... } } }
+    const stats: Record<string, Record<string, Record<string, number | null>>> = {};
+    data.forEach(point => {
+      const location = point.location;
+      const dateKey = point.datetime.toISOString().split('T')[0];
+      const hour = point.datetime.getHours();
+      if (hour < 2 || hour > 5) return; // Only consider 2AM-5AM
+
+      if (!stats[location]) stats[location] = {};
+      if (!stats[location][dateKey]) stats[location][dateKey] = {};
+
+      for (let i = 1; i <= 4; i++) {
+        const key = `DELTA${i}`;
+        const val = point.values[key];
+        if (typeof val === 'number') {
+          if (
+            stats[location][dateKey][key] === undefined ||
+            val < (stats[location][dateKey][key] as number)
+          ) {
+            stats[location][dateKey][key] = val;
+          }
+        }
+      }
+    });
+    // Fill missing with null for consistent table rendering
+    Object.values(stats).forEach(locationStats => {
+      Object.values(locationStats).forEach(dayStats => {
+        for (let i = 1; i <= 4; i++) {
+          const key = `DELTA${i}`;
+          if (dayStats[key] === undefined) dayStats[key] = null;
+        }
+      });
+    });
+    return stats;
+  }, [data]);
 
   if (data.length === 0) {
     return (
@@ -355,6 +393,60 @@ const DataCharts = ({ data }: DataChartsProps) => {
           </CardContent>
         </Card>
       ))}
+
+      {/* Nightly minimum DELTA1-4 per day per location */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Nightly Minimum Water Consumption (2AM-5AM, DELTA1-4)</CardTitle>
+          <CardDescription>
+            Shows the lowest value per day for each DELTA channel between 2AM and 5AM (should approach zero if no leaks).
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {Object.keys(dailyNightMinStats).length === 0 ? (
+            <div className="text-muted-foreground">No DELTA1-4 data available in the 2AM-5AM window.</div>
+          ) : (
+            Object.entries(dailyNightMinStats).map(([location, days]) => (
+              <div key={location} className="mb-8">
+                <h4 className="font-semibold mb-2">{location}</h4>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-xs border">
+                    <thead>
+                      <tr>
+                        <th className="border px-2 py-1">Date</th>
+                        {[1,2,3,4].map(i => (
+                          <th key={i} className="border px-2 py-1">DELTA{i} Min (2-5AM)</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(days)
+                        .sort(([dateA], [dateB]) => dateA.localeCompare(dateB))
+                        .map(([date, stats]) => (
+                          <tr key={date}>
+                            <td className="border px-2 py-1">{new Date(date).toLocaleDateString()}</td>
+                            {[1,2,3,4].map(i => {
+                              const val = stats[`DELTA${i}`];
+                              return (
+                                <td key={i} className="border px-2 py-1 text-center">
+                                  {val === null || val === undefined ? (
+                                    <span className="text-muted-foreground">No data</span>
+                                  ) : (
+                                    val.toFixed(2)
+                                  )}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 };
