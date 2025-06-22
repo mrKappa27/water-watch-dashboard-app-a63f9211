@@ -10,7 +10,7 @@ import { ParsedDataPoint } from "@/types/dataTypes";
 import {
   generateWaterConsumptionForecast,
   detectAnomalies
-} from "c:/Users/K/Downloads/water_forecasting_core.js";
+} from "../utils/water_forecasting_core.js";
 
 interface ForecastingPanelProps {
   data: ParsedDataPoint[];
