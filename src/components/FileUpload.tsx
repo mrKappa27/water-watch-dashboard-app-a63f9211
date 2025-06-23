@@ -4,7 +4,9 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Upload, File, X } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import { ParsedDataPoint } from "@/types/dataTypes";
+import { syncDataToSupabase } from "@/utils/supabaseSync";
 
 interface FileUploadProps {
   onDataParsed: (data: ParsedDataPoint[]) => void;
@@ -14,6 +16,7 @@ const FileUpload = ({ onDataParsed }: FileUploadProps) => {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const parseCSV = (content: string): Record<string, any>[] => {
     const lines = content.trim().split('\n');
@@ -129,7 +132,7 @@ const FileUpload = ({ onDataParsed }: FileUploadProps) => {
   };
 
   const processFiles = useCallback(async () => {
-    if (selectedFiles.length === 0) return;
+    if (selectedFiles.length === 0 || !user) return;
 
     setIsProcessing(true);
     const allParsedData: ParsedDataPoint[] = [];
@@ -170,13 +173,29 @@ const FileUpload = ({ onDataParsed }: FileUploadProps) => {
       });
 
       console.log('Total parsed data points:', allParsedData.length);
+
+      // Sync to Supabase
+      console.log('Syncing data to Supabase...');
+      const { data: syncedData, error: syncError } = await syncDataToSupabase(allParsedData, user.id);
+      
+      if (syncError) {
+        console.error('Sync error:', syncError);
+        toast({
+          title: "Sync Warning",
+          description: "Data processed but failed to sync to database. Check console for details.",
+          variant: "destructive",
+        });
+      } else {
+        console.log('Successfully synced to Supabase:', syncedData?.length, 'records');
+        toast({
+          title: "Success",
+          description: `Processed ${selectedFiles.length} files with ${allParsedData.length} data points and synced to database`,
+        });
+      }
+
       onDataParsed(allParsedData);
       setSelectedFiles([]);
       
-      toast({
-        title: "Success",
-        description: `Processed ${selectedFiles.length} files with ${allParsedData.length} data points`,
-      });
     } catch (error) {
       console.error('Error processing files:', error);
       toast({
@@ -187,7 +206,7 @@ const FileUpload = ({ onDataParsed }: FileUploadProps) => {
     } finally {
       setIsProcessing(false);
     }
-  }, [selectedFiles, onDataParsed, toast]);
+  }, [selectedFiles, onDataParsed, toast, user]);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
@@ -220,7 +239,7 @@ const FileUpload = ({ onDataParsed }: FileUploadProps) => {
         />
         <Button 
           onClick={processFiles} 
-          disabled={selectedFiles.length === 0 || isProcessing}
+          disabled={selectedFiles.length === 0 || isProcessing || !user}
           className="min-w-[120px]"
         >
           {isProcessing ? (
@@ -228,11 +247,17 @@ const FileUpload = ({ onDataParsed }: FileUploadProps) => {
           ) : (
             <>
               <Upload className="w-4 h-4 mr-2" />
-              Process Files
+              Process & Sync
             </>
           )}
         </Button>
       </div>
+
+      {!user && (
+        <div className="text-sm text-muted-foreground">
+          Please sign in to sync data to the database.
+        </div>
+      )}
 
       {selectedFiles.length > 0 && (
         <Card>

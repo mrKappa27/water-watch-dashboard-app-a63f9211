@@ -73,8 +73,10 @@ export type Database = {
           din4: number | null
           dout1: number | null
           dout2: number | null
+          filename: string | null
           gsm: number | null
           id: number
+          location: string | null
           pow: number | null
           tavg: number | null
           temp: number | null
@@ -86,6 +88,7 @@ export type Database = {
           tot3: number | null
           tot4: number | null
           type: string | null
+          user_id: string | null
           vbat: number | null
         }
         Insert: {
@@ -103,8 +106,10 @@ export type Database = {
           din4?: number | null
           dout1?: number | null
           dout2?: number | null
+          filename?: string | null
           gsm?: number | null
           id?: never
+          location?: string | null
           pow?: number | null
           tavg?: number | null
           temp?: number | null
@@ -116,6 +121,7 @@ export type Database = {
           tot3?: number | null
           tot4?: number | null
           type?: string | null
+          user_id?: string | null
           vbat?: number | null
         }
         Update: {
@@ -133,8 +139,10 @@ export type Database = {
           din4?: number | null
           dout1?: number | null
           dout2?: number | null
+          filename?: string | null
           gsm?: number | null
           id?: never
+          location?: string | null
           pow?: number | null
           tavg?: number | null
           temp?: number | null
@@ -146,6 +154,7 @@ export type Database = {
           tot3?: number | null
           tot4?: number | null
           type?: string | null
+          user_id?: string | null
           vbat?: number | null
         }
         Relationships: []
