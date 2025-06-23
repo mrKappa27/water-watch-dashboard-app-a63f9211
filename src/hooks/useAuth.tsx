@@ -28,16 +28,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // If on localhost, create a mock user and skip auth
     if (isLocalhost) {
-      const mockUser = {
+      const mockUser: User = {
         id: 'localhost-user',
+        aud: 'authenticated',
+        role: 'authenticated',
         email: 'localhost@test.com',
-        user_metadata: { full_name: 'Localhost User' }
-      } as User;
+        email_confirmed_at: new Date().toISOString(),
+        phone: '',
+        confirmed_at: new Date().toISOString(),
+        last_sign_in_at: new Date().toISOString(),
+        app_metadata: {},
+        user_metadata: { full_name: 'Localhost User' },
+        identities: [],
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
       
-      const mockSession = {
-        user: mockUser,
-        access_token: 'mock-token'
-      } as Session;
+      const mockSession: Session = {
+        access_token: 'mock-token',
+        refresh_token: 'mock-refresh-token',
+        expires_in: 3600,
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+        token_type: 'bearer',
+        user: mockUser
+      };
 
       setUser(mockUser);
       setSession(mockSession);
