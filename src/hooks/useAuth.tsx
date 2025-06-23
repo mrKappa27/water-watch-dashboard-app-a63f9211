@@ -20,7 +20,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Check if running on localhost
+  const isLocalhost = window.location.hostname === 'localhost' || 
+                     window.location.hostname === '127.0.0.1' ||
+                     window.location.hostname === '::1';
+
   useEffect(() => {
+    // If on localhost, create a mock user and skip auth
+    if (isLocalhost) {
+      const mockUser = {
+        id: 'localhost-user',
+        email: 'localhost@test.com',
+        user_metadata: { full_name: 'Localhost User' }
+      } as User;
+      
+      const mockSession = {
+        user: mockUser,
+        access_token: 'mock-token'
+      } as Session;
+
+      setUser(mockUser);
+      setSession(mockSession);
+      setLoading(false);
+      return;
+    }
+
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
@@ -38,9 +62,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [isLocalhost]);
 
   const signUp = async (email: string, password: string, fullName?: string) => {
+    if (isLocalhost) {
+      return { error: null };
+    }
+
     const redirectUrl = `${window.location.origin}/`;
     
     const { error } = await supabase.auth.signUp({
@@ -56,6 +84,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signIn = async (email: string, password: string) => {
+    if (isLocalhost) {
+      return { error: null };
+    }
+
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password
@@ -65,11 +97,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    if (isLocalhost) {
+      return { error: null };
+    }
+
     const { error } = await supabase.auth.signOut();
     return { error };
   };
 
   const signInWithProvider = async (provider: 'google' | 'github' | 'twitter') => {
+    if (isLocalhost) {
+      return { error: null };
+    }
+
     const redirectUrl = `${window.location.origin}/`;
     
     const { error } = await supabase.auth.signInWithOAuth({
