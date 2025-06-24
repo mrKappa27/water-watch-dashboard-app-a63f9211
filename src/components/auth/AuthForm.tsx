@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,7 +13,7 @@ export default function AuthForm() {
   const [fullName, setFullName] = useState('');
   const [loading, setLoading] = useState(false);
   const [showResetPassword, setShowResetPassword] = useState(false);
-  const { signUp, signIn, signInWithProvider } = useAuth();
+  const { signUp, signIn, signInWithProvider, resetPassword } = useAuth();
   const { toast } = useToast();
 
   const handleSignUp = async (e: React.FormEvent) => {
@@ -82,7 +81,6 @@ export default function AuthForm() {
     }
 
     setLoading(true);
-    const { resetPassword } = useAuth();
     const { error } = await resetPassword(email);
     
     if (error) {
