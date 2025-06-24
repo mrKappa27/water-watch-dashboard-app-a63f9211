@@ -8,37 +8,50 @@ export const syncDataToSupabase = async (data: ParsedDataPoint[], userId: string
     const supabaseData = data.map(point => {
       const values = point.values;
       
+      // Helper function to convert to number or null
+      const toNumber = (value: any): number | null => {
+        if (value === null || value === undefined || value === '') return null;
+        const num = Number(value);
+        return isNaN(num) ? null : num;
+      };
+
+      // Helper function to convert to string or null
+      const toString = (value: any): string | null => {
+        if (value === null || value === undefined || value === '') return null;
+        return String(value);
+      };
+      
       return {
         location: point.location,
         filename: point.filename,
         user_id: userId,
         time: point.datetime instanceof Date ? point.datetime.toISOString() : new Date(point.datetime).toISOString(),
-        type: values.type || values.Type || null,
-        din1: values.din1 || values.DIN1 || null,
-        din2: values.din2 || values.DIN2 || null,
-        din3: values.din3 || values.DIN3 || null,
-        din4: values.din4 || values.DIN4 || null,
-        dout1: values.dout1 || values.DOUT1 || null,
-        dout2: values.dout2 || values.DOUT2 || null,
-        vbat: values.vbat || values.VBAT || null,
-        pow: values.pow || values.POW || null,
-        tot1: values.tot1 || values.TOT1 || null,
-        cnt1: values.cnt1 || values.CNT1 || null,
-        delta1: values.delta1 || values.DELTA1 || null,
-        tot2: values.tot2 || values.TOT2 || null,
-        cnt2: values.cnt2 || values.CNT2 || null,
-        delta2: values.delta2 || values.DELTA2 || null,
-        tot3: values.tot3 || values.TOT3 || null,
-        cnt3: values.cnt3 || values.CNT3 || null,
-        delta3: values.delta3 || values.DELTA3 || null,
-        tot4: values.tot4 || values.TOT4 || null,
-        cnt4: values.cnt4 || values.CNT4 || null,
-        delta4: values.delta4 || values.DELTA4 || null,
-        gsm: values.gsm || values.GSM || null,
-        temp: values.temp || values.TEMP || null,
-        tavg: values.tavg || values.TAVG || null,
-        tmin: values.tmin || values.TMIN || null,
-        tmax: values.tmax || values.TMAX || null
+        type: toString(values.type || values.Type),
+        din1: toNumber(values.din1 || values.DIN1),
+        din2: toNumber(values.din2 || values.DIN2),
+        din3: toNumber(values.din3 || values.DIN3),
+        din4: toNumber(values.din4 || values.DIN4),
+        dout1: toNumber(values.dout1 || values.DOUT1),
+        dout2: toNumber(values.dout2 || values.DOUT2),
+        vbat: toNumber(values.vbat || values.VBAT),
+        pow: toNumber(values.pow || values.POW),
+        tot1: toNumber(values.tot1 || values.TOT1),
+        cnt1: toNumber(values.cnt1 || values.CNT1),
+        delta1: toNumber(values.delta1 || values.DELTA1),
+        tot2: toNumber(values.tot2 || values.TOT2),
+        cnt2: toNumber(values.cnt2 || values.CNT2),
+        delta2: toNumber(values.delta2 || values.DELTA2),
+        tot3: toNumber(values.tot3 || values.TOT3),
+        cnt3: toNumber(values.cnt3 || values.CNT3),
+        delta3: toNumber(values.delta3 || values.DELTA3),
+        tot4: toNumber(values.tot4 || values.TOT4),
+        cnt4: toNumber(values.cnt4 || values.CNT4),
+        delta4: toNumber(values.delta4 || values.DELTA4),
+        gsm: toNumber(values.gsm || values.GSM),
+        temp: toNumber(values.temp || values.TEMP),
+        tavg: toNumber(values.tavg || values.TAVG),
+        tmin: toNumber(values.tmin || values.TMIN),
+        tmax: toNumber(values.tmax || values.TMAX)
       };
     });
 
