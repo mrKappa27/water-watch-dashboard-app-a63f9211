@@ -6,6 +6,16 @@ export interface ChartPreferences {
   columnAliases: Record<string, string>;
 }
 
+const isValidVisibleParams = (value: any): value is Record<string, boolean> => {
+  return value && typeof value === 'object' && !Array.isArray(value) &&
+    Object.values(value).every(v => typeof v === 'boolean');
+};
+
+const isValidColumnAliases = (value: any): value is Record<string, string> => {
+  return value && typeof value === 'object' && !Array.isArray(value) &&
+    Object.values(value).every(v => typeof v === 'string');
+};
+
 export const loadUserChartPreferences = async (userId: string, location: string): Promise<ChartPreferences | null> => {
   try {
     const { data, error } = await supabase
@@ -25,8 +35,8 @@ export const loadUserChartPreferences = async (userId: string, location: string)
     }
 
     return {
-      visibleParams: data.visible_params || {},
-      columnAliases: data.column_aliases || {}
+      visibleParams: isValidVisibleParams(data.visible_params) ? data.visible_params : {},
+      columnAliases: isValidColumnAliases(data.column_aliases) ? data.column_aliases : {}
     };
   } catch (error) {
     console.error('Error loading chart preferences:', error);
