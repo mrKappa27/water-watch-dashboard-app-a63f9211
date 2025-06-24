@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from 'react';
+
+import React, { useMemo, useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
@@ -8,6 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Settings } from 'lucide-react';
 import { ParsedDataPoint } from "@/types/dataTypes";
+import { useAuth } from "@/hooks/useAuth";
+import { loadUserChartPreferences, saveUserChartPreferences } from "@/utils/chartPreferences";
+import { useToast } from "@/hooks/use-toast";
 
 interface DataChartsProps {
   data: ParsedDataPoint[];
@@ -16,6 +20,9 @@ interface DataChartsProps {
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
 
 const DataCharts = ({ data }: DataChartsProps) => {
+  const { user } = useAuth();
+  const { toast } = useToast();
+
   const chartData = useMemo(() => {
     // Group data by location and date for time series
     const timeSeriesData: Record<string, any[]> = {};
@@ -73,20 +80,45 @@ const DataCharts = ({ data }: DataChartsProps) => {
   }, [data]);
 
   // State to track which parameters are visible for each location
-  const [visibleParams, setVisibleParams] = useState<Record<string, Record<string, boolean>>>(() => {
-    const initial: Record<string, Record<string, boolean>> = {};
-    Object.keys(chartData.timeSeriesData).forEach(location => {
-      initial[location] = {};
-      chartData.numericParams.forEach(param => {
-        initial[location][param] = true; // All visible by default
-      });
-    });
-    return initial;
-  });
+  const [visibleParams, setVisibleParams] = useState<Record<string, Record<string, boolean>>>({});
 
   // State for column aliases per location
   const [columnAliases, setColumnAliases] = useState<Record<string, Record<string, string>>>({});
   const [showAliasSettings, setShowAliasSettings] = useState<Record<string, boolean>>({});
+
+  // Load preferences on component mount and when user/data changes
+  useEffect(() => {
+    const loadPreferences = async () => {
+      if (!user) return;
+
+      const locations = Object.keys(chartData.timeSeriesData);
+      const newVisibleParams: Record<string, Record<string, boolean>> = {};
+      const newColumnAliases: Record<string, Record<string, string>> = {};
+
+      for (const location of locations) {
+        const preferences = await loadUserChartPreferences(user.id, location);
+        
+        if (preferences) {
+          newVisibleParams[location] = preferences.visibleParams;
+          newColumnAliases[location] = preferences.columnAliases;
+        } else {
+          // Default: all params visible
+          newVisibleParams[location] = {};
+          chartData.numericParams.forEach(param => {
+            newVisibleParams[location][param] = true;
+          });
+          newColumnAliases[location] = {};
+        }
+      }
+
+      setVisibleParams(newVisibleParams);
+      setColumnAliases(newColumnAliases);
+    };
+
+    if (Object.keys(chartData.timeSeriesData).length > 0) {
+      loadPreferences();
+    }
+  }, [user, chartData.timeSeriesData, chartData.numericParams]);
 
   const chartConfig = useMemo(() => {
     const config: Record<string, { label: string; color: string }> = {};
@@ -99,6 +131,30 @@ const DataCharts = ({ data }: DataChartsProps) => {
     return config;
   }, [chartData.numericParams]);
 
+  const savePreferences = async (location: string) => {
+    if (!user) return;
+
+    const preferences = {
+      visibleParams: visibleParams[location] || {},
+      columnAliases: columnAliases[location] || {}
+    };
+
+    const success = await saveUserChartPreferences(user.id, location, preferences);
+    
+    if (success) {
+      toast({
+        title: "Settings Saved",
+        description: `Chart preferences for ${location} have been saved.`,
+      });
+    } else {
+      toast({
+        title: "Error",
+        description: "Failed to save chart preferences.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const toggleParam = (location: string, param: string) => {
     setVisibleParams(prev => ({
       ...prev,
@@ -109,7 +165,6 @@ const DataCharts = ({ data }: DataChartsProps) => {
     }));
   };
 
-  // Add function to toggle all params for a location
   const toggleAllParams = (location: string, show: boolean) => {
     setVisibleParams(prev => ({
       ...prev,
@@ -176,13 +231,12 @@ const DataCharts = ({ data }: DataChartsProps) => {
 
   // Compute daily minimum for DELTA1-4 per location, focusing on 2AM-5AM
   const dailyNightMinStats = useMemo(() => {
-    // { [location]: { [date]: { delta1: min, delta2: min, ... } } }
     const stats: Record<string, Record<string, Record<string, number | null>>> = {};
     data.forEach(point => {
       const location = point.location;
       const dateKey = point.datetime.toISOString().split('T')[0];
       const hour = point.datetime.getHours();
-      if (hour < 2 || hour > 5) return; // Only consider 2AM-5AM
+      if (hour < 2 || hour > 5) return;
 
       if (!stats[location]) stats[location] = {};
       if (!stats[location][dateKey]) stats[location][dateKey] = {};
@@ -200,7 +254,6 @@ const DataCharts = ({ data }: DataChartsProps) => {
         }
       }
     });
-    // Fill missing with null for consistent table rendering
     Object.values(stats).forEach(locationStats => {
       Object.values(locationStats).forEach(dayStats => {
         for (let i = 1; i <= 4; i++) {
@@ -222,7 +275,7 @@ const DataCharts = ({ data }: DataChartsProps) => {
 
   return (
     <div className="space-y-6">
-      {/* ... keep existing code (pie chart and bar chart sections) */}
+      {/* Pie chart and bar chart sections */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
@@ -281,14 +334,24 @@ const DataCharts = ({ data }: DataChartsProps) => {
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
               <span>Time Series Data - {location}</span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => toggleAliasSettings(location)}
-              >
-                <Settings className="w-4 h-4 mr-2" />
-                Column Settings
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => savePreferences(location)}
+                  disabled={!user}
+                >
+                  Save Settings
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => toggleAliasSettings(location)}
+                >
+                  <Settings className="w-4 h-4 mr-2" />
+                  Column Settings
+                </Button>
+              </div>
             </CardTitle>
             <CardDescription>
               Trends over time for numeric parameters at {location}
@@ -323,7 +386,6 @@ const DataCharts = ({ data }: DataChartsProps) => {
               <div className="border rounded-lg p-4 bg-muted/50">
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="text-sm font-medium">Toggle Data Series:</h4>
-                  {/* Toggle all params button */}
                   <Button
                     variant="secondary"
                     size="sm"

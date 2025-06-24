@@ -36,6 +36,36 @@ export type Database = {
         }
         Relationships: []
       }
+      user_chart_preferences: {
+        Row: {
+          column_aliases: Json
+          created_at: string
+          id: string
+          location: string
+          updated_at: string
+          user_id: string
+          visible_params: Json
+        }
+        Insert: {
+          column_aliases?: Json
+          created_at?: string
+          id?: string
+          location: string
+          updated_at?: string
+          user_id: string
+          visible_params?: Json
+        }
+        Update: {
+          column_aliases?: Json
+          created_at?: string
+          id?: string
+          location?: string
+          updated_at?: string
+          user_id?: string
+          visible_params?: Json
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
