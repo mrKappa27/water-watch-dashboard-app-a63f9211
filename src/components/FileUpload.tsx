@@ -6,7 +6,7 @@ import { Upload, File, X } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { ParsedDataPoint } from "@/types/dataTypes";
-import { syncDataToSupabase } from "@/utils/supabaseSync";
+import { syncDataToSupabase, checkFileExists } from "@/utils/supabaseSync";
 
 interface FileUploadProps {
   onDataParsed: (data: ParsedDataPoint[]) => void;
@@ -136,9 +136,30 @@ const FileUpload = ({ onDataParsed }: FileUploadProps) => {
 
     setIsProcessing(true);
     const allParsedData: ParsedDataPoint[] = [];
+    const duplicateFiles: string[] = [];
+    const processedFiles: string[] = [];
 
     try {
+      // Check for duplicate files first
       for (const file of selectedFiles) {
+        const fileExists = await checkFileExists(file.name, user.id);
+        if (fileExists) {
+          duplicateFiles.push(file.name);
+        }
+      }
+
+      if (duplicateFiles.length > 0) {
+        toast({
+          title: "Duplicate Files Detected",
+          description: `The following files were already uploaded: ${duplicateFiles.join(', ')}. They will be skipped.`,
+          variant: "destructive",
+        });
+      }
+
+      // Process only new files
+      const newFiles = selectedFiles.filter(file => !duplicateFiles.includes(file.name));
+
+      for (const file of newFiles) {
         console.log('Processing file:', file.name);
         const content = await file.text();
         const csvData = parseCSV(content);
@@ -163,16 +184,28 @@ const FileUpload = ({ onDataParsed }: FileUploadProps) => {
             values: row
           });
         });
+
+        processedFiles.push(file.name);
       }
 
-      // Sort by datetime ASC before passing to onDataParsed
+      if (allParsedData.length === 0) {
+        toast({
+          title: "No New Data",
+          description: "All selected files were already uploaded.",
+        });
+        setSelectedFiles([]);
+        setIsProcessing(false);
+        return;
+      }
+
+      // Sort by datetime ASC before syncing
       allParsedData.sort((a, b) => {
         const aTime = a.datetime instanceof Date ? a.datetime.getTime() : new Date(a.datetime).getTime();
         const bTime = b.datetime instanceof Date ? b.datetime.getTime() : new Date(b.datetime).getTime();
         return aTime - bTime;
       });
 
-      console.log('Total parsed data points:', allParsedData.length);
+      console.log('Total new data points:', allParsedData.length);
 
       // Sync to Supabase
       console.log('Syncing data to Supabase...');
@@ -187,10 +220,22 @@ const FileUpload = ({ onDataParsed }: FileUploadProps) => {
         });
       } else {
         console.log('Successfully synced to Supabase:', syncedData?.length, 'records');
-        toast({
-          title: "Success",
-          description: `Processed ${selectedFiles.length} files with ${allParsedData.length} data points and synced to database`,
-        });
+        
+        const successMessage = processedFiles.length > 0 
+          ? `Successfully processed ${processedFiles.length} new files with ${allParsedData.length} data points`
+          : 'All files were duplicates and were skipped';
+          
+        if (duplicateFiles.length > 0) {
+          toast({
+            title: "Partial Success",
+            description: `${successMessage}. ${duplicateFiles.length} duplicate files were skipped.`,
+          });
+        } else {
+          toast({
+            title: "Success",
+            description: successMessage,
+          });
+        }
       }
 
       onDataParsed(allParsedData);

@@ -2,6 +2,81 @@
 import { supabase } from '@/integrations/supabase/client';
 import { ParsedDataPoint } from '@/types/dataTypes';
 
+export const checkFileExists = async (filename: string, userId: string): Promise<boolean> => {
+  try {
+    const { data, error } = await supabase
+      .from('water_consumption_metrics')
+      .select('filename')
+      .eq('filename', filename)
+      .eq('user_id', userId)
+      .limit(1);
+
+    if (error) {
+      console.error('Error checking file existence:', error);
+      return false;
+    }
+
+    return data && data.length > 0;
+  } catch (error) {
+    console.error('Error checking file existence:', error);
+    return false;
+  }
+};
+
+export const fetchDataFromDatabase = async (userId: string): Promise<ParsedDataPoint[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('water_consumption_metrics')
+      .select('*')
+      .eq('user_id', userId)
+      .order('time', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching data from database:', error);
+      return [];
+    }
+
+    // Transform database records back to ParsedDataPoint format
+    return data.map(record => ({
+      id: `${record.filename}-${record.id}`,
+      location: record.location || '',
+      datetime: new Date(record.time || ''),
+      filename: record.filename || '',
+      values: {
+        type: record.type,
+        din1: record.din1,
+        din2: record.din2,
+        din3: record.din3,
+        din4: record.din4,
+        dout1: record.dout1,
+        dout2: record.dout2,
+        vbat: record.vbat,
+        pow: record.pow,
+        tot1: record.tot1,
+        cnt1: record.cnt1,
+        delta1: record.delta1,
+        tot2: record.tot2,
+        cnt2: record.cnt2,
+        delta2: record.delta2,
+        tot3: record.tot3,
+        cnt3: record.cnt3,
+        delta3: record.delta3,
+        tot4: record.tot4,
+        cnt4: record.cnt4,
+        delta4: record.delta4,
+        gsm: record.gsm,
+        temp: record.temp,
+        tavg: record.tavg,
+        tmin: record.tmin,
+        tmax: record.tmax
+      }
+    }));
+  } catch (error) {
+    console.error('Error fetching data from database:', error);
+    return [];
+  }
+};
+
 export const syncDataToSupabase = async (data: ParsedDataPoint[], userId: string) => {
   try {
     // Transform ParsedDataPoint to match the water_consumption_metrics table structure

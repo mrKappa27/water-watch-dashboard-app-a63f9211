@@ -1,7 +1,6 @@
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -10,11 +9,15 @@ import DataDashboard from "@/components/DataDashboard";
 import UserMenu from "@/components/auth/UserMenu";
 import { ParsedDataPoint } from "@/types/dataTypes";
 import { useAuth } from "@/hooks/useAuth";
+import { fetchDataFromDatabase } from "@/utils/supabaseSync";
+import { useToast } from "@/hooks/use-toast";
 
 const Index = () => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
   const [parsedData, setParsedData] = useState<ParsedDataPoint[]>([]);
+  const [isLoadingData, setIsLoadingData] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     if (!loading && !user) {
@@ -22,12 +25,60 @@ const Index = () => {
     }
   }, [user, loading, navigate]);
 
-  const handleDataParsed = (newData: ParsedDataPoint[]) => {
-    setParsedData(prevData => [...prevData, ...newData]);
+  // Fetch data from database when user is available
+  useEffect(() => {
+    const loadDataFromDatabase = async () => {
+      if (!user) return;
+      
+      setIsLoadingData(true);
+      try {
+        const data = await fetchDataFromDatabase(user.id);
+        setParsedData(data);
+        console.log('Loaded data from database:', data.length, 'records');
+      } catch (error) {
+        console.error('Error loading data from database:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load data from database",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoadingData(false);
+      }
+    };
+
+    loadDataFromDatabase();
+  }, [user, toast]);
+
+  const handleDataParsed = async (newData: ParsedDataPoint[]) => {
+    // Refresh data from database after new upload
+    if (user) {
+      setIsLoadingData(true);
+      try {
+        const data = await fetchDataFromDatabase(user.id);
+        setParsedData(data);
+      } catch (error) {
+        console.error('Error refreshing data from database:', error);
+      } finally {
+        setIsLoadingData(false);
+      }
+    }
   };
 
-  const handleClearData = () => {
-    setParsedData([]);
+  const handleClearData = async () => {
+    // For now, just refresh from database
+    // In the future, you might want to add a function to delete all user data
+    if (user) {
+      setIsLoadingData(true);
+      try {
+        const data = await fetchDataFromDatabase(user.id);
+        setParsedData(data);
+      } catch (error) {
+        console.error('Error refreshing data from database:', error);
+      } finally {
+        setIsLoadingData(false);
+      }
+    }
   };
 
   if (loading) {
@@ -87,7 +138,17 @@ const Index = () => {
           </TabsContent>
 
           <TabsContent value="dashboard" className="mt-6">
-            <DataDashboard data={parsedData} onClearData={handleClearData} />
+            {isLoadingData ? (
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-center py-8">
+                    <div className="text-lg">Loading data from database...</div>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <DataDashboard data={parsedData} onClearData={handleClearData} />
+            )}
           </TabsContent>
         </Tabs>
       </div>
