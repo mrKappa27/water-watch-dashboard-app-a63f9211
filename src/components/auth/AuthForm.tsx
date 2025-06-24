@@ -13,6 +13,7 @@ export default function AuthForm() {
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showResetPassword, setShowResetPassword] = useState(false);
   const { signUp, signIn, signInWithProvider } = useAuth();
   const { toast } = useToast();
 
@@ -69,6 +70,37 @@ export default function AuthForm() {
     setLoading(false);
   };
 
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email) {
+      toast({
+        title: "Error",
+        description: "Please enter your email address.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setLoading(true);
+    const { resetPassword } = useAuth();
+    const { error } = await resetPassword(email);
+    
+    if (error) {
+      toast({
+        title: "Reset Failed",
+        description: error.message,
+        variant: "destructive"
+      });
+    } else {
+      toast({
+        title: "Reset Email Sent",
+        description: "Check your email for password reset instructions."
+      });
+      setShowResetPassword(false);
+    }
+    setLoading(false);
+  };
+
   const handleSocialLogin = async (provider: 'google' | 'github' | 'twitter') => {
     setLoading(true);
     const { error } = await signInWithProvider(provider);
@@ -82,6 +114,46 @@ export default function AuthForm() {
     }
     setLoading(false);
   };
+
+  if (showResetPassword) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle>Reset Password</CardTitle>
+            <CardDescription>
+              Enter your email address and we'll send you a reset link
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleResetPassword} className="space-y-4">
+              <div>
+                <Input
+                  type="email"
+                  placeholder="Email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={loading}
+                />
+              </div>
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? "Sending..." : "Send Reset Link"}
+              </Button>
+              <Button 
+                type="button" 
+                variant="outline" 
+                className="w-full" 
+                onClick={() => setShowResetPassword(false)}
+                disabled={loading}
+              >
+                Back to Sign In
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -121,6 +193,15 @@ export default function AuthForm() {
                 </div>
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? "Signing In..." : "Sign In"}
+                </Button>
+                <Button 
+                  type="button" 
+                  variant="link" 
+                  className="w-full text-sm text-muted-foreground" 
+                  onClick={() => setShowResetPassword(true)}
+                  disabled={loading}
+                >
+                  Forgot your password?
                 </Button>
               </form>
             </TabsContent>
