@@ -1,4 +1,3 @@
-
 import React, { useMemo, useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -34,7 +33,7 @@ const NightlyConsumptionAnalysis = () => {
           .from('water_consumption_metrics')
           .select('id, location, time, delta1, delta2, delta3, delta4')
           .eq('user_id', user.id)
-          .order('time', { ascending: true });
+          .order('time', { ascending: false }); // Order by time descending to get latest first
 
         if (error) {
           console.error('Error fetching data from database:', error);
@@ -47,6 +46,7 @@ const NightlyConsumptionAnalysis = () => {
         }
 
         console.log('Fetched data from database:', dbData?.length, 'records');
+        console.log('Latest record:', dbData?.[0]);
         setData(dbData || []);
       } catch (error) {
         console.error('Error fetching data from database:', error);
@@ -110,7 +110,7 @@ const NightlyConsumptionAnalysis = () => {
     return stats;
   }, [data]);
 
-  // Calculate location statistics
+  // Calculate location statistics with proper latest data
   const locationStats = useMemo(() => {
     const statsMap = new Map<string, {
       location: string;
@@ -149,6 +149,23 @@ const NightlyConsumptionAnalysis = () => {
     });
 
     return Array.from(statsMap.values());
+  }, [data]);
+
+  // Calculate overall statistics
+  const overallStats = useMemo(() => {
+    if (data.length === 0) return { totalRecords: 0, locations: 0, latestUpdate: null };
+
+    const latestRecord = data.reduce((latest, current) => {
+      const currentTime = new Date(current.time);
+      const latestTime = new Date(latest.time);
+      return currentTime > latestTime ? current : latest;
+    });
+
+    return {
+      totalRecords: data.length,
+      locations: new Set(data.map(d => d.location).filter(Boolean)).size,
+      latestUpdate: new Date(latestRecord.time)
+    };
   }, [data]);
 
   // Helper function to determine the status of a consumption value
@@ -232,7 +249,7 @@ const NightlyConsumptionAnalysis = () => {
         </CardHeader>
         <CardContent>
           <div className="text-muted-foreground text-center py-8">
-            Database contains {data.length} records, but none in the 2AM-5AM time window.
+            Database contains {data.length.toLocaleString()} records, but none in the 2AM-5AM time window.
           </div>
         </CardContent>
       </Card>
@@ -245,7 +262,7 @@ const NightlyConsumptionAnalysis = () => {
         <CardTitle>Nightly Water Consumption Analysis (2AM-5AM)</CardTitle>
         <CardDescription>
           Minimum consumption values during low-usage hours from database. 
-          Total records: {data.length.toLocaleString()}. 
+          Total records: {overallStats.totalRecords.toLocaleString()}. 
           Values near zero indicate no leaks, while higher values may suggest potential issues.
         </CardDescription>
       </CardHeader>
@@ -254,21 +271,26 @@ const NightlyConsumptionAnalysis = () => {
           {/* Database Statistics */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-muted/30 rounded-lg">
             <div className="text-center">
-              <div className="text-2xl font-bold">{data.length.toLocaleString()}</div>
+              <div className="text-2xl font-bold">{overallStats.totalRecords.toLocaleString()}</div>
               <div className="text-sm text-muted-foreground">Total Records</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold">{locationStats.length}</div>
+              <div className="text-2xl font-bold">{overallStats.locations}</div>
               <div className="text-sm text-muted-foreground">Locations</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold">
-                {locationStats.length > 0 && locationStats[0].dateRange.end 
-                  ? locationStats[0].dateRange.end.toLocaleDateString()
+                {overallStats.latestUpdate 
+                  ? overallStats.latestUpdate.toLocaleDateString()
                   : 'N/A'
                 }
               </div>
               <div className="text-sm text-muted-foreground">Latest Data</div>
+              {overallStats.latestUpdate && (
+                <div className="text-xs text-muted-foreground mt-1">
+                  {overallStats.latestUpdate.toLocaleTimeString()}
+                </div>
+              )}
             </div>
           </div>
 
