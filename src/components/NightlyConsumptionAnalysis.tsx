@@ -29,25 +29,42 @@ const NightlyConsumptionAnalysis = () => {
       
       setIsLoading(true);
       try {
-        const { data: dbData, error } = await supabase
-          .from('water_consumption_metrics')
-          .select('id, location, time, delta1, delta2, delta3, delta4')
-          .eq('user_id', user.id)
-          .order('time', { ascending: false }); // Order by time descending to get latest first
+        // Fetch all records by using a large limit and potentially paginating if needed
+        let allData: DatabaseRecord[] = [];
+        let from = 0;
+        const batchSize = 1000;
+        let hasMore = true;
 
-        if (error) {
-          console.error('Error fetching data from database:', error);
-          toast({
-            title: "Error",
-            description: "Failed to load data from database",
-            variant: "destructive",
-          });
-          return;
+        while (hasMore) {
+          const { data: dbData, error } = await supabase
+            .from('water_consumption_metrics')
+            .select('id, location, time, delta1, delta2, delta3, delta4')
+            .eq('user_id', user.id)
+            .order('time', { ascending: false })
+            .range(from, from + batchSize - 1);
+
+          if (error) {
+            console.error('Error fetching data from database:', error);
+            toast({
+              title: "Error",
+              description: "Failed to load data from database",
+              variant: "destructive",
+            });
+            break;
+          }
+
+          if (!dbData || dbData.length === 0) {
+            hasMore = false;
+          } else {
+            allData = [...allData, ...dbData];
+            hasMore = dbData.length === batchSize;
+            from += batchSize;
+          }
         }
 
-        console.log('Fetched data from database:', dbData?.length, 'records');
-        console.log('Latest record:', dbData?.[0]);
-        setData(dbData || []);
+        console.log('Fetched all data from database:', allData.length, 'records');
+        console.log('Latest record:', allData[0]);
+        setData(allData);
       } catch (error) {
         console.error('Error fetching data from database:', error);
         toast({
@@ -209,7 +226,7 @@ const NightlyConsumptionAnalysis = () => {
       <Card>
         <CardHeader>
           <CardTitle>Nightly Water Consumption Analysis (2AM-5AM)</CardTitle>
-          <CardDescription>Loading data from database...</CardDescription>
+          <CardDescription>Loading all data from database...</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="text-center py-8">
