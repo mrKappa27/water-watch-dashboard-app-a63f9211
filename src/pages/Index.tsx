@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -163,7 +162,7 @@ const Index = () => {
                 </CardContent>
               </Card>
             ) : (
-              <NightlyConsumptionAnalysis data={parsedData} />
+              <NightlyConsumptionAnalysis />
             )}
           </TabsContent>
         </Tabs>
