@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import FileUpload from "@/components/FileUpload";
 import DataDashboard from "@/components/DataDashboard";
+import NightlyConsumptionAnalysis from "@/components/NightlyConsumptionAnalysis";
 import UserMenu from "@/components/auth/UserMenu";
 import { ParsedDataPoint } from "@/types/dataTypes";
 import { useAuth } from "@/hooks/useAuth";
@@ -118,9 +119,10 @@ const Index = () => {
         </div>
 
         <Tabs defaultValue="upload" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="upload">File Upload</TabsTrigger>
             <TabsTrigger value="dashboard">Dashboard & Analytics</TabsTrigger>
+            <TabsTrigger value="leak-detection">Leak Detection</TabsTrigger>
           </TabsList>
 
           <TabsContent value="upload" className="mt-6">
@@ -148,6 +150,20 @@ const Index = () => {
               </Card>
             ) : (
               <DataDashboard data={parsedData} onClearData={handleClearData} />
+            )}
+          </TabsContent>
+
+          <TabsContent value="leak-detection" className="mt-6">
+            {isLoadingData ? (
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-center py-8">
+                    <div className="text-lg">Loading data from database...</div>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <NightlyConsumptionAnalysis data={parsedData} />
             )}
           </TabsContent>
         </Tabs>
