@@ -16,10 +16,17 @@ interface DatabaseRecord {
   delta4: number | null;
 }
 
+interface StatsData {
+  totalRecords: number;
+  locations: number;
+  latestUpdate: Date | null;
+}
+
 const NightlyConsumptionAnalysis = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [data, setData] = useState<DatabaseRecord[]>([]);
+  const [statsData, setStatsData] = useState<StatsData>({ totalRecords: 0, locations: 0, latestUpdate: null });
   const [isLoading, setIsLoading] = useState(true);
 
   // Fetch data from database
@@ -29,7 +36,57 @@ const NightlyConsumptionAnalysis = () => {
       
       setIsLoading(true);
       try {
-        // Fetch all records by using a large limit and potentially paginating if needed
+        // First, get the total count and latest record datetime with dedicated queries
+        const [countResult, latestResult, locationsResult] = await Promise.all([
+          // Get total count
+          supabase
+            .from('water_consumption_metrics')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', user.id),
+          
+          // Get latest record datetime
+          supabase
+            .from('water_consumption_metrics')
+            .select('time')
+            .eq('user_id', user.id)
+            .order('time', { ascending: false })
+            .limit(1)
+            .single(),
+          
+          // Get unique locations count
+          supabase
+            .from('water_consumption_metrics')
+            .select('location')
+            .eq('user_id', user.id)
+            .not('location', 'is', null)
+        ]);
+
+        if (countResult.error) {
+          console.error('Error getting record count:', countResult.error);
+        }
+
+        if (latestResult.error && latestResult.error.code !== 'PGRST116') {
+          console.error('Error getting latest record:', latestResult.error);
+        }
+
+        if (locationsResult.error) {
+          console.error('Error getting locations:', locationsResult.error);
+        }
+
+        // Calculate stats
+        const totalRecords = countResult.count || 0;
+        const latestUpdate = latestResult.data?.time ? new Date(latestResult.data.time) : null;
+        const uniqueLocations = new Set(locationsResult.data?.map(record => record.location).filter(Boolean)).size;
+
+        setStatsData({
+          totalRecords,
+          locations: uniqueLocations,
+          latestUpdate
+        });
+
+        console.log('Database stats:', { totalRecords, uniqueLocations, latestUpdate });
+
+        // Now fetch all records for analysis (using pagination if needed)
         let allData: DatabaseRecord[] = [];
         let from = 0;
         const batchSize = 1000;
@@ -63,7 +120,6 @@ const NightlyConsumptionAnalysis = () => {
         }
 
         console.log('Fetched all data from database:', allData.length, 'records');
-        console.log('Latest record:', allData[0]);
         setData(allData);
       } catch (error) {
         console.error('Error fetching data from database:', error);
@@ -168,23 +224,6 @@ const NightlyConsumptionAnalysis = () => {
     return Array.from(statsMap.values());
   }, [data]);
 
-  // Calculate overall statistics
-  const overallStats = useMemo(() => {
-    if (data.length === 0) return { totalRecords: 0, locations: 0, latestUpdate: null };
-
-    const latestRecord = data.reduce((latest, current) => {
-      const currentTime = new Date(current.time);
-      const latestTime = new Date(latest.time);
-      return currentTime > latestTime ? current : latest;
-    });
-
-    return {
-      totalRecords: data.length,
-      locations: new Set(data.map(d => d.location).filter(Boolean)).size,
-      latestUpdate: new Date(latestRecord.time)
-    };
-  }, [data]);
-
   // Helper function to determine the status of a consumption value
   const getConsumptionStatus = (value: number | null) => {
     if (value === null || value === undefined) return 'no-data';
@@ -237,7 +276,7 @@ const NightlyConsumptionAnalysis = () => {
     );
   }
 
-  if (data.length === 0) {
+  if (statsData.totalRecords === 0) {
     return (
       <Card>
         <CardHeader>
@@ -266,7 +305,7 @@ const NightlyConsumptionAnalysis = () => {
         </CardHeader>
         <CardContent>
           <div className="text-muted-foreground text-center py-8">
-            Database contains {data.length.toLocaleString()} records, but none in the 2AM-5AM time window.
+            Database contains {statsData.totalRecords.toLocaleString()} records, but none in the 2AM-5AM time window.
           </div>
         </CardContent>
       </Card>
@@ -279,7 +318,7 @@ const NightlyConsumptionAnalysis = () => {
         <CardTitle>Nightly Water Consumption Analysis (2AM-5AM)</CardTitle>
         <CardDescription>
           Minimum consumption values during low-usage hours from database. 
-          Total records: {overallStats.totalRecords.toLocaleString()}. 
+          Total records: {statsData.totalRecords.toLocaleString()}. 
           Values near zero indicate no leaks, while higher values may suggest potential issues.
         </CardDescription>
       </CardHeader>
@@ -288,24 +327,24 @@ const NightlyConsumptionAnalysis = () => {
           {/* Database Statistics */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-muted/30 rounded-lg">
             <div className="text-center">
-              <div className="text-2xl font-bold">{overallStats.totalRecords.toLocaleString()}</div>
+              <div className="text-2xl font-bold">{statsData.totalRecords.toLocaleString()}</div>
               <div className="text-sm text-muted-foreground">Total Records</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold">{overallStats.locations}</div>
+              <div className="text-2xl font-bold">{statsData.locations}</div>
               <div className="text-sm text-muted-foreground">Locations</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold">
-                {overallStats.latestUpdate 
-                  ? overallStats.latestUpdate.toLocaleDateString()
+                {statsData.latestUpdate 
+                  ? statsData.latestUpdate.toLocaleDateString()
                   : 'N/A'
                 }
               </div>
               <div className="text-sm text-muted-foreground">Latest Data</div>
-              {overallStats.latestUpdate && (
+              {statsData.latestUpdate && (
                 <div className="text-xs text-muted-foreground mt-1">
-                  {overallStats.latestUpdate.toLocaleTimeString()}
+                  {statsData.latestUpdate.toLocaleTimeString()}
                 </div>
               )}
             </div>
