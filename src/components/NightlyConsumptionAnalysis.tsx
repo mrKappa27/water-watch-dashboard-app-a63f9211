@@ -129,7 +129,7 @@ const NightlyConsumptionAnalysis = ({ data }: NightlyConsumptionAnalysisProps) =
             </div>
             <div className="flex items-center gap-2">
               <XCircle className="w-4 h-4 text-red-500" />
-              <span className="text-sm">> 2.0: High (Potential leak)</span>
+              <span className="text-sm">&gt; 2.0: High (Potential leak)</span>
             </div>
           </div>
 
