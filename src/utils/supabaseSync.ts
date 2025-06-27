@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { ParsedDataPoint, LocationStats } from '@/types/dataTypes';
 
@@ -27,26 +26,45 @@ export const fetchDataFromDatabase = async (userId: string): Promise<ParsedDataP
   try {
     console.log('Fetching all data from database for user:', userId);
     
-    // Fetch ALL records without any limit
-    const { data, error } = await supabase
-      .from('water_consumption_metrics')
-      .select('*')
-      .eq('user_id', userId)
-      .order('time', { ascending: true });
+    let allData: any[] = [];
+    let hasMore = true;
+    let page = 0;
+    const pageSize = 1000; // Fetch in batches of 1000
+    
+    while (hasMore) {
+      console.log(`Fetching page ${page + 1} (records ${page * pageSize} to ${(page + 1) * pageSize})...`);
+      
+      const { data, error } = await supabase
+        .from('water_consumption_metrics')
+        .select('*')
+        .eq('user_id', userId)
+        .order('time', { ascending: true })
+        .range(page * pageSize, (page + 1) * pageSize - 1);
 
-    if (error) {
-      console.error('Error fetching data from database:', error);
-      return [];
+      if (error) {
+        console.error('Error fetching data from database:', error);
+        break;
+      }
+
+      if (!data || data.length === 0) {
+        hasMore = false;
+      } else {
+        allData = [...allData, ...data];
+        console.log(`Fetched ${data.length} records on page ${page + 1}. Total so far: ${allData.length}`);
+        
+        // If we got less than pageSize records, we've reached the end
+        if (data.length < pageSize) {
+          hasMore = false;
+        } else {
+          page++;
+        }
+      }
     }
 
-    console.log('Fetched records from database:', data?.length || 0);
-
-    if (!data) {
-      return [];
-    }
+    console.log('Total records fetched from database:', allData.length);
 
     // Transform database records back to ParsedDataPoint format
-    const transformedData = data.map(record => ({
+    const transformedData = allData.map(record => ({
       id: `${record.filename}-${record.id}`,
       location: record.location || '',
       datetime: new Date(record.time || ''),
