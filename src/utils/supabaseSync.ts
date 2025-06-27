@@ -1,5 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
-import { ParsedDataPoint } from '@/types/dataTypes';
+import { ParsedDataPoint, LocationStats } from '@/types/dataTypes';
 
 export const checkFileExists = async (filename: string, userId: string): Promise<boolean> => {
   try {
