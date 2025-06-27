@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { ParsedDataPoint, LocationStats } from '@/types/dataTypes';
 
@@ -225,8 +226,8 @@ export const getLocationStats = async (userId: string): Promise<LocationStats[]>
       const firstRecord = dateRangeData[0];
       const lastRecord = dateRangeData[dateRangeData.length - 1];
 
-      // Calculate averages
-      const averageValues: { [key: string]: number | string } = {};
+      // Calculate averages - ensure only numbers are included
+      const averageValues: Record<string, number> = {};
       const numericFields = ['tot1', 'tot2', 'tot3', 'tot4', 'temp', 'vbat'];
       
       numericFields.forEach(field => {
