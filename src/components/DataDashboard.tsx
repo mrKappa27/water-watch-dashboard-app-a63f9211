@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +9,8 @@ import StatsOverview from "@/components/StatsOverview";
 import DataCharts from "@/components/DataCharts";
 import DataTable from "@/components/DataTable";
 import ForecastingPanel from "@/components/ForecastingPanel";
+import { getLocationStats } from "@/utils/supabaseSync";
+import { useAuth } from "@/hooks/useAuth";
 
 interface DataDashboardProps {
   data: ParsedDataPoint[];
@@ -16,6 +18,11 @@ interface DataDashboardProps {
 }
 
 const DataDashboard = ({ data, onClearData }: DataDashboardProps) => {
+  const { user } = useAuth();
+  const [actualLocationStats, setActualLocationStats] = useState<LocationStats[]>([]);
+  const [isLoadingStats, setIsLoadingStats] = useState(true);
+
+  // Keep the original locationStats for compatibility with existing code that might need it
   const locationStats = useMemo((): LocationStats[] => {
     const statsMap = new Map<string, LocationStats>();
 
@@ -58,6 +65,24 @@ const DataDashboard = ({ data, onClearData }: DataDashboardProps) => {
     return Array.from(statsMap.values());
   }, [data]);
 
+  useEffect(() => {
+    const fetchLocationStats = async () => {
+      if (!user) return;
+      
+      setIsLoadingStats(true);
+      try {
+        const stats = await getLocationStats(user.id);
+        setActualLocationStats(stats);
+      } catch (error) {
+        console.error('Error fetching location stats:', error);
+      } finally {
+        setIsLoadingStats(false);
+      }
+    };
+
+    fetchLocationStats();
+  }, [user, data]); // Re-fetch when data changes (after upload)
+
   if (data.length === 0) {
     return (
       <Card>
@@ -74,13 +99,15 @@ const DataDashboard = ({ data, onClearData }: DataDashboardProps) => {
     );
   }
 
+  const displayStats = actualLocationStats.length > 0 ? actualLocationStats : locationStats;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold">Dashboard Analytics</h2>
           <p className="text-muted-foreground">
-            {data.length} data points from {locationStats.length} locations
+            {data.length} data points from {displayStats.length} locations
           </p>
         </div>
         <Button variant="outline" onClick={onClearData}>
@@ -90,36 +117,55 @@ const DataDashboard = ({ data, onClearData }: DataDashboardProps) => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {locationStats.map(stats => (
-          <Card key={stats.location}>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg">{stats.location}</CardTitle>
-              <CardDescription>
-                {stats.totalRecords} records
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Last Update:</span>
-                  <span>{stats.lastUpdate.toLocaleDateString()}</span>
+        {isLoadingStats ? (
+          [...Array(3)].map((_, i) => (
+            <Card key={i}>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg">Loading...</CardTitle>
+                <CardDescription>-- records</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Last Update:</span>
+                    <span>--</span>
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-1">
-                  {Object.keys(stats.averageValues).slice(0, 3).map(key => (
-                    <Badge key={key} variant="secondary" className="text-xs">
-                      {key}
-                    </Badge>
-                  ))}
-                  {Object.keys(stats.averageValues).length > 3 && (
-                    <Badge variant="outline" className="text-xs">
-                      +{Object.keys(stats.averageValues).length - 3} more
-                    </Badge>
-                  )}
+              </CardContent>
+            </Card>
+          ))
+        ) : (
+          displayStats.map(stats => (
+            <Card key={stats.location}>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg">{stats.location}</CardTitle>
+                <CardDescription>
+                  {stats.totalRecords.toLocaleString()} records
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Last Update:</span>
+                    <span>{stats.lastUpdate.toLocaleDateString()}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {Object.keys(stats.averageValues).slice(0, 3).map(key => (
+                      <Badge key={key} variant="secondary" className="text-xs">
+                        {key}
+                      </Badge>
+                    ))}
+                    {Object.keys(stats.averageValues).length > 3 && (
+                      <Badge variant="outline" className="text-xs">
+                        +{Object.keys(stats.averageValues).length - 3} more
+                      </Badge>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            </Card>
+          ))
+        )}
       </div>
 
       <Tabs defaultValue="overview" className="w-full">
@@ -131,7 +177,7 @@ const DataDashboard = ({ data, onClearData }: DataDashboardProps) => {
         </TabsList>
 
         <TabsContent value="overview" className="mt-6">
-          <StatsOverview data={data} locationStats={locationStats} />
+          <StatsOverview data={data} locationStats={displayStats} />
         </TabsContent>
 
         <TabsContent value="charts" className="mt-6">

@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { ParsedDataPoint } from '@/types/dataTypes';
 
@@ -153,5 +152,130 @@ export const syncDataToSupabase = async (data: ParsedDataPoint[], userId: string
   } catch (error) {
     console.error('Error syncing data to Supabase:', error);
     return { data: null, error };
+  }
+};
+
+export const getTotalRecordCount = async (userId: string): Promise<number> => {
+  try {
+    const { count, error } = await supabase
+      .from('water_consumption_metrics')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId);
+
+    if (error) {
+      console.error('Error getting total record count:', error);
+      return 0;
+    }
+
+    return count || 0;
+  } catch (error) {
+    console.error('Error getting total record count:', error);
+    return 0;
+  }
+};
+
+export const getLocationStats = async (userId: string): Promise<LocationStats[]> => {
+  try {
+    // Get unique locations and their record counts
+    const { data: locationData, error: locationError } = await supabase
+      .from('water_consumption_metrics')
+      .select('location')
+      .eq('user_id', userId)
+      .not('location', 'is', null);
+
+    if (locationError) {
+      console.error('Error fetching locations:', locationError);
+      return [];
+    }
+
+    // Get unique locations
+    const uniqueLocations = [...new Set(locationData.map(item => item.location))];
+    
+    const locationStats: LocationStats[] = [];
+
+    // For each location, get detailed stats
+    for (const location of uniqueLocations) {
+      if (!location) continue;
+
+      // Get count for this location
+      const { count, error: countError } = await supabase
+        .from('water_consumption_metrics')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('location', location);
+
+      if (countError) {
+        console.error(`Error getting count for location ${location}:`, countError);
+        continue;
+      }
+
+      // Get date range and sample data for averages
+      const { data: dateRangeData, error: dateError } = await supabase
+        .from('water_consumption_metrics')
+        .select('time, tot1, tot2, tot3, tot4, temp, vbat')
+        .eq('user_id', userId)
+        .eq('location', location)
+        .order('time', { ascending: true });
+
+      if (dateError || !dateRangeData || dateRangeData.length === 0) {
+        console.error(`Error getting date range for location ${location}:`, dateError);
+        continue;
+      }
+
+      const firstRecord = dateRangeData[0];
+      const lastRecord = dateRangeData[dateRangeData.length - 1];
+
+      // Calculate averages
+      const averageValues: { [key: string]: number | string } = {};
+      const numericFields = ['tot1', 'tot2', 'tot3', 'tot4', 'temp', 'vbat'];
+      
+      numericFields.forEach(field => {
+        const values = dateRangeData
+          .map(record => record[field as keyof typeof record])
+          .filter(val => val !== null && val !== undefined && typeof val === 'number') as number[];
+        
+        if (values.length > 0) {
+          averageValues[field] = values.reduce((sum, val) => sum + val, 0) / values.length;
+        }
+      });
+
+      locationStats.push({
+        location,
+        totalRecords: count || 0,
+        dateRange: {
+          start: new Date(firstRecord.time),
+          end: new Date(lastRecord.time)
+        },
+        averageValues,
+        lastUpdate: new Date(lastRecord.time)
+      });
+    }
+
+    return locationStats;
+  } catch (error) {
+    console.error('Error getting location stats:', error);
+    return [];
+  }
+};
+
+export const getLastUpdateTime = async (userId: string): Promise<Date | null> => {
+  try {
+    const { data, error } = await supabase
+      .from('water_consumption_metrics')
+      .select('time')
+      .eq('user_id', userId)
+      .order('time', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (error || !data) {
+      console.error('Error getting last update time:', error);
+      return null;
+    }
+
+    return new Date(data.time);
+  } catch (error) {
+    console.error('Error getting last update time:', error);
+    return null;
   }
 };

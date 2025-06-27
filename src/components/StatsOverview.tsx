@@ -1,8 +1,11 @@
 
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CalendarDays, MapPin, TrendingUp, Database } from 'lucide-react';
 import { ParsedDataPoint, LocationStats } from "@/types/dataTypes";
+import { getTotalRecordCount, getLocationStats, getLastUpdateTime } from "@/utils/supabaseSync";
+import { useAuth } from "@/hooks/useAuth";
 
 interface StatsOverviewProps {
   data: ParsedDataPoint[];
@@ -10,22 +13,69 @@ interface StatsOverviewProps {
 }
 
 const StatsOverview = ({ data, locationStats }: StatsOverviewProps) => {
-  const totalDataPoints = data.length;
-  const uniqueLocations = locationStats.length;
-  const dateRange = data.length > 0 ? {
-    start: new Date(Math.min(...data.map(d => d.datetime.getTime()))),
-    end: new Date(Math.max(...data.map(d => d.datetime.getTime())))
+  const { user } = useAuth();
+  const [totalDataPoints, setTotalDataPoints] = useState(0);
+  const [actualLocationStats, setActualLocationStats] = useState<LocationStats[]>([]);
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      if (!user) return;
+      
+      setIsLoading(true);
+      try {
+        const [count, stats, lastUpdateTime] = await Promise.all([
+          getTotalRecordCount(user.id),
+          getLocationStats(user.id),
+          getLastUpdateTime(user.id)
+        ]);
+
+        setTotalDataPoints(count);
+        setActualLocationStats(stats);
+        setLastUpdate(lastUpdateTime);
+      } catch (error) {
+        console.error('Error fetching stats:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchStats();
+  }, [user]);
+
+  const uniqueLocations = actualLocationStats.length;
+  const dateRange = actualLocationStats.length > 0 && lastUpdate ? {
+    start: new Date(Math.min(...actualLocationStats.map(s => s.dateRange.start.getTime()))),
+    end: lastUpdate
   } : null;
 
-  // Get all unique parameters across all data
+  // Get all unique parameters across all locations
   const allParameters = new Set<string>();
-  data.forEach(point => {
-    Object.keys(point.values).forEach(key => {
-      if (typeof point.values[key] === 'number') {
+  actualLocationStats.forEach(stats => {
+    Object.keys(stats.averageValues).forEach(key => {
+      if (typeof stats.averageValues[key] === 'number') {
         allParameters.add(key);
       }
     });
   });
+
+  if (isLoading) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {[...Array(4)].map((_, i) => (
+          <Card key={i}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Loading...</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">--</div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -90,11 +140,11 @@ const StatsOverview = ({ data, locationStats }: StatsOverviewProps) => {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {locationStats.map(stats => (
+            {actualLocationStats.map(stats => (
               <div key={stats.location} className="border rounded-lg p-4">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-semibold text-lg">{stats.location}</h3>
-                  <Badge variant="secondary">{stats.totalRecords} records</Badge>
+                  <Badge variant="secondary">{stats.totalRecords.toLocaleString()} records</Badge>
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
