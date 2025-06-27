@@ -25,6 +25,9 @@ export const checkFileExists = async (filename: string, userId: string): Promise
 
 export const fetchDataFromDatabase = async (userId: string): Promise<ParsedDataPoint[]> => {
   try {
+    console.log('Fetching all data from database for user:', userId);
+    
+    // Fetch ALL records without any limit
     const { data, error } = await supabase
       .from('water_consumption_metrics')
       .select('*')
@@ -36,8 +39,14 @@ export const fetchDataFromDatabase = async (userId: string): Promise<ParsedDataP
       return [];
     }
 
+    console.log('Fetched records from database:', data?.length || 0);
+
+    if (!data) {
+      return [];
+    }
+
     // Transform database records back to ParsedDataPoint format
-    return data.map(record => ({
+    const transformedData = data.map(record => ({
       id: `${record.filename}-${record.id}`,
       location: record.location || '',
       datetime: new Date(record.time || ''),
@@ -71,6 +80,9 @@ export const fetchDataFromDatabase = async (userId: string): Promise<ParsedDataP
         tmax: record.tmax
       }
     }));
+
+    console.log('Transformed data points:', transformedData.length);
+    return transformedData;
   } catch (error) {
     console.error('Error fetching data from database:', error);
     return [];

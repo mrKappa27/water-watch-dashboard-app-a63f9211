@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,11 +31,16 @@ const Index = () => {
     const loadDataFromDatabase = async () => {
       if (!user) return;
       
+      console.log('Starting to load data from database...');
       setIsLoadingData(true);
       try {
         const data = await fetchDataFromDatabase(user.id);
         setParsedData(data);
-        console.log('Loaded data from database:', data.length, 'records');
+        console.log('Successfully loaded data from database:', data.length, 'records');
+        
+        if (data.length === 0) {
+          console.log('No data found in database for user:', user.id);
+        }
       } catch (error) {
         console.error('Error loading data from database:', error);
         toast({
@@ -53,10 +59,12 @@ const Index = () => {
   const handleDataParsed = async (newData: ParsedDataPoint[]) => {
     // Refresh data from database after new upload
     if (user) {
+      console.log('Data uploaded, refreshing from database...');
       setIsLoadingData(true);
       try {
         const data = await fetchDataFromDatabase(user.id);
         setParsedData(data);
+        console.log('Refreshed data after upload:', data.length, 'records');
       } catch (error) {
         console.error('Error refreshing data from database:', error);
       } finally {
