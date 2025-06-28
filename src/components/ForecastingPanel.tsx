@@ -1,15 +1,17 @@
+
 import { useState, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from 'recharts';
-import { TrendingUp, Calculator } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, ReferenceLine } from 'recharts';
+import { TrendingUp, Calculator, Brain, AlertTriangle, BarChart3 } from 'lucide-react';
 import { ParsedDataPoint } from "@/types/dataTypes";
-// Import core forecasting functions
 import {
-  generateWaterConsumptionForecast,
-  detectAnomalies
+  generateAdvancedForecast,
+  detectAdvancedAnomalies
 } from "../utils/water_forecasting_core.js";
 
 interface ForecastingPanelProps {
@@ -19,7 +21,9 @@ interface ForecastingPanelProps {
 const ForecastingPanel = ({ data }: ForecastingPanelProps) => {
   const [selectedLocation, setSelectedLocation] = useState<string>('');
   const [selectedMetric, setSelectedMetric] = useState<string>('');
-  const [forecastHorizon, setForecastHorizon] = useState(24); // in hours
+  const [forecastHorizon, setForecastHorizon] = useState(24);
+  const [modelSelection, setModelSelection] = useState<string>('auto');
+  const [confidenceLevel, setConfidenceLevel] = useState(0.9);
   const [forecastResult, setForecastResult] = useState<any>(null);
   const [anomalies, setAnomalies] = useState<any[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -29,7 +33,6 @@ const ForecastingPanel = ({ data }: ForecastingPanelProps) => {
     return Array.from(new Set(data.map(d => d.location)));
   }, [data]);
 
-  // Get all numeric metrics/parameters from the parsed data
   const metrics = useMemo(() => {
     const set = new Set<string>();
     data.forEach(point => {
@@ -42,7 +45,6 @@ const ForecastingPanel = ({ data }: ForecastingPanelProps) => {
     return Array.from(set);
   }, [data]);
 
-  // Prepare data for the selected location and metric
   const coreData = useMemo(() => {
     if (!selectedLocation || !selectedMetric) return [];
     return data
@@ -53,45 +55,53 @@ const ForecastingPanel = ({ data }: ForecastingPanelProps) => {
       }));
   }, [data, selectedLocation, selectedMetric]);
 
-  // Generate forecast using the core, adapting to generic metric
   const handleForecast = () => {
     if (coreData.length < 3) return;
     setIsGenerating(true);
+    
     setTimeout(() => {
       try {
-        // Adapt coreData to the expected format for the core
         const adaptedCoreData = coreData.map(d => ({
           timestamp: d.timestamp,
-          deltas: [d.value], // single metric as first meter
+          deltas: [d.value],
           totals: [0]
         }));
-        const result = generateWaterConsumptionForecast(adaptedCoreData, {
+        
+        const result = generateAdvancedForecast(adaptedCoreData, {
           forecastHours: forecastHorizon,
           meterIndex: 0,
-          useTemperature: false,
-          confidenceLevel: 0.9
+          modelSelection,
+          confidenceLevel,
+          useTemperature: false
         });
+        
         setForecastResult(result);
-        setAnomalies(detectAnomalies(adaptedCoreData, 0, 2.5));
+        
+        const detectedAnomalies = detectAdvancedAnomalies(adaptedCoreData, 0, {
+          threshold: 2.5,
+          methods: ['statistical', 'seasonal', 'trend']
+        });
+        
+        setAnomalies(detectedAnomalies);
       } catch (e) {
+        console.error('Forecasting error:', e);
         setForecastResult(null);
         setAnomalies([]);
       }
       setIsGenerating(false);
-    }, 300);
+    }, 500);
   };
 
-  // Prepare chart data
   const combinedChartData = useMemo(() => {
     if (!forecastResult) return [];
-    // Historical
+    
     const historical = coreData.map(d => ({
       datetime: d.timestamp.getTime(),
       value: d.value,
       type: "historical",
       date: d.timestamp.toLocaleString()
     }));
-    // Forecast
+    
     const forecast = forecastResult.forecast.map((f: any) => ({
       datetime: f.timestamp.getTime(),
       value: f.predicted,
@@ -100,13 +110,32 @@ const ForecastingPanel = ({ data }: ForecastingPanelProps) => {
       type: "forecast",
       date: f.timestamp.toLocaleString()
     }));
+    
     return [...historical, ...forecast].sort((a, b) => a.datetime - b.datetime);
   }, [coreData, forecastResult]);
 
   const chartConfig = {
-    value: { label: "Value", color: "#0088FE" },
+    value: { label: "Actual", color: "#0088FE" },
     upper: { label: "Upper Bound", color: "#82CA9D" },
     lower: { label: "Lower Bound", color: "#FFBB28" }
+  };
+
+  const getModelBadgeColor = (model: string) => {
+    switch (model) {
+      case 'holtWinters': return 'bg-blue-100 text-blue-800';
+      case 'exponential': return 'bg-green-100 text-green-800';
+      case 'linear': return 'bg-purple-100 text-purple-800';
+      case 'movingAverage': return 'bg-orange-100 text-orange-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getSeverityColor = (severity: string) => {
+    switch (severity) {
+      case 'high': return 'bg-red-100 text-red-800';
+      case 'medium': return 'bg-yellow-100 text-yellow-800';
+      default: return 'bg-blue-100 text-blue-800';
+    }
   };
 
   return (
@@ -114,15 +143,15 @@ const ForecastingPanel = ({ data }: ForecastingPanelProps) => {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="w-5 h-5" />
-            Forecasting Panel
+            <Brain className="w-5 h-5" />
+            Advanced Forecasting Panel
           </CardTitle>
           <CardDescription>
-            Forecast any numeric metric for each location, with confidence intervals and anomaly detection.
+            Intelligent forecasting with multiple algorithms, model selection, and comprehensive anomaly detection
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-4">
             <div>
               <label className="text-sm font-medium mb-2 block">Location</label>
               <Select value={selectedLocation} onValueChange={setSelectedLocation}>
@@ -138,6 +167,7 @@ const ForecastingPanel = ({ data }: ForecastingPanelProps) => {
                 </SelectContent>
               </Select>
             </div>
+            
             <div>
               <label className="text-sm font-medium mb-2 block">Metric</label>
               <Select value={selectedMetric} onValueChange={setSelectedMetric}>
@@ -153,19 +183,53 @@ const ForecastingPanel = ({ data }: ForecastingPanelProps) => {
                 </SelectContent>
               </Select>
             </div>
+            
             <div>
-              <label className="text-sm font-medium mb-2 block">Forecast Horizon (hours)</label>
+              <label className="text-sm font-medium mb-2 block">Forecast Horizon</label>
               <Select value={forecastHorizon.toString()} onValueChange={v => setForecastHorizon(Number(v))}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Forecast horizon" />
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="12">12 Hours</SelectItem>
                   <SelectItem value="24">1 Day</SelectItem>
                   <SelectItem value="48">2 Days</SelectItem>
                   <SelectItem value="72">3 Days</SelectItem>
+                  <SelectItem value="168">1 Week</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+            
+            <div>
+              <label className="text-sm font-medium mb-2 block">Model</label>
+              <Select value={modelSelection} onValueChange={setModelSelection}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="auto">Auto Select</SelectItem>
+                  <SelectItem value="holtWinters">Holt-Winters</SelectItem>
+                  <SelectItem value="exponential">Exponential</SelectItem>
+                  <SelectItem value="linear">Linear Trend</SelectItem>
+                  <SelectItem value="movingAverage">Moving Average</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div>
+              <label className="text-sm font-medium mb-2 block">Confidence</label>
+              <Select value={confidenceLevel.toString()} onValueChange={v => setConfidenceLevel(Number(v))}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="0.8">80%</SelectItem>
+                  <SelectItem value="0.9">90%</SelectItem>
+                  <SelectItem value="0.95">95%</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
             <div className="flex items-end">
               <Button
                 onClick={handleForecast}
@@ -177,12 +241,13 @@ const ForecastingPanel = ({ data }: ForecastingPanelProps) => {
                 ) : (
                   <>
                     <Calculator className="w-4 h-4 mr-2" />
-                    Generate Forecast
+                    Forecast
                   </>
                 )}
               </Button>
             </div>
           </div>
+          
           {coreData.length < 3 && selectedLocation && selectedMetric && (
             <div className="text-sm text-muted-foreground p-4 bg-muted rounded">
               Need at least 3 data points to generate a forecast. Currently have {coreData.length} points.
@@ -191,112 +256,231 @@ const ForecastingPanel = ({ data }: ForecastingPanelProps) => {
         </CardContent>
       </Card>
 
-      {combinedChartData.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Historical Data & Forecast</CardTitle>
-            <CardDescription>
-              {selectedMetric} at {selectedLocation} with {forecastHorizon}-hour forecast
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ChartContainer config={chartConfig} className="h-[400px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={combinedChartData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis
-                    dataKey="date"
-                    type="category"
-                    tickFormatter={(value) => value}
-                  />
-                  <YAxis />
-                  <ChartTooltip content={<ChartTooltipContent />} />
-                  <Line
-                    type="monotone"
-                    dataKey="value"
-                    stroke="#0088FE"
-                    strokeWidth={2}
-                    dot={{ r: 3 }}
-                    connectNulls={false}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="upper"
-                    stroke="#82CA9D"
-                    strokeWidth={1}
-                    dot={false}
-                    connectNulls={false}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="lower"
-                    stroke="#FFBB28"
-                    strokeWidth={1}
-                    dot={false}
-                    connectNulls={false}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </ChartContainer>
-          </CardContent>
-        </Card>
-      )}
-
       {forecastResult && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Forecast Details</CardTitle>
-            <CardDescription>
-              {forecastHorizon}-hour forecast with confidence levels and trend: <b>{forecastResult.metadata.trend.direction}</b>
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {forecastResult.forecast.map((point: any, index: number) => (
-                <div key={index} className="flex justify-between items-center p-3 border rounded">
-                  <div>
-                    <span className="font-medium">{point.timestamp.toLocaleString()}</span>
+        <Tabs defaultValue="forecast" className="space-y-4">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="forecast">Forecast</TabsTrigger>
+            <TabsTrigger value="models">Models</TabsTrigger>
+            <TabsTrigger value="patterns">Patterns</TabsTrigger>
+            <TabsTrigger value="anomalies">Anomalies</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="forecast">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span>Forecast Results</span>
+                  <div className="flex gap-2">
+                    <Badge className={getModelBadgeColor(forecastResult.models.selected)}>
+                      {forecastResult.models.selected}
+                    </Badge>
+                    <Badge variant="outline">
+                      {(confidenceLevel * 100).toFixed(0)}% Confidence
+                    </Badge>
                   </div>
-                  <div className="text-right">
-                    <div className="font-medium">{point.predicted.toFixed(2)}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {((forecastResult.metadata.confidence || 0) * 100).toFixed(0)}% confidence
-                      &nbsp;| Range: {point.lowerBound.toFixed(2)} - {point.upperBound.toFixed(2)}
+                </CardTitle>
+                <CardDescription>
+                  {selectedMetric} at {selectedLocation} • {forecastHorizon}-hour forecast • 
+                  Trend: <strong>{forecastResult.metadata.patterns.trendStrength > 0.5 ? 'Strong' : 'Weak'}</strong>
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ChartContainer config={chartConfig} className="h-[400px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={combinedChartData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis
+                        dataKey="date"
+                        type="category"
+                        interval="preserveStartEnd"
+                        tick={{ fontSize: 12 }}
+                      />
+                      <YAxis />
+                      <ChartTooltip content={<ChartTooltipContent />} />
+                      <ReferenceLine 
+                        x={coreData[coreData.length - 1]?.timestamp.getTime()} 
+                        stroke="#ff7300" 
+                        strokeDasharray="5 5"
+                        label="Forecast Start"
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="value"
+                        stroke="#0088FE"
+                        strokeWidth={2}
+                        dot={{ r: 2 }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="upper"
+                        stroke="#82CA9D"
+                        strokeWidth={1}
+                        strokeDasharray="3 3"
+                        dot={false}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="lower"
+                        stroke="#FFBB28"
+                        strokeWidth={1}
+                        strokeDasharray="3 3"
+                        dot={false}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </ChartContainer>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="models">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <BarChart3 className="w-5 h-5" />
+                  Model Comparison
+                </CardTitle>
+                <CardDescription>
+                  Performance comparison of different forecasting models
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {Object.entries(forecastResult.metadata.modelAccuracy || {}).map(([model, accuracy]: [string, any]) => (
+                    <div key={model} className="flex items-center justify-between p-4 border rounded">
+                      <div className="flex items-center gap-3">
+                        <Badge className={getModelBadgeColor(model)}>
+                          {model}
+                        </Badge>
+                        {model === forecastResult.models.selected && (
+                          <Badge variant="outline">Selected</Badge>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm font-medium">
+                          MAPE: {accuracy.mape?.toFixed(2)}%
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          RMSE: {accuracy.rmse?.toFixed(2)}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="patterns">
+            <Card>
+              <CardHeader>
+                <CardTitle>Pattern Analysis</CardTitle>
+                <CardDescription>
+                  Seasonal and trend patterns detected in the data
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <h4 className="font-medium mb-2">Seasonal Patterns</h4>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span>Seasonal Strength:</span>
+                        <Badge variant="outline">
+                          {(forecastResult.metadata.patterns.seasonalStrength * 100).toFixed(1)}%
+                        </Badge>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Peak Hour:</span>
+                        <span>{forecastResult.metadata.patterns.peakHour}:00</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Peak Day:</span>
+                        <span>{['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][forecastResult.metadata.patterns.peakDay]}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <h4 className="font-medium mb-2">Trend Analysis</h4>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span>Trend Strength:</span>
+                        <Badge variant="outline">
+                          {(forecastResult.metadata.patterns.trendStrength * 100).toFixed(1)}%
+                        </Badge>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Direction:</span>
+                        <span className="capitalize">
+                          {forecastResult.metadata.patterns.trendStrength > 0.1 ? 
+                            (forecastResult.metadata.patterns.trendStrength > 0 ? 'Increasing' : 'Decreasing') : 
+                            'Stable'
+                          }
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-      {anomalies.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Anomaly Detection</CardTitle>
-            <CardDescription>
-              Detected {anomalies.length} anomalies for {selectedMetric} at {selectedLocation}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {anomalies.map((a, idx) => (
-                <div key={idx} className="flex justify-between items-center p-3 border rounded bg-red-50">
-                  <div>
-                    <span className="font-medium">{a.timestamp.toLocaleString()}</span>
+          <TabsContent value="anomalies">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5" />
+                  Anomaly Detection
+                </CardTitle>
+                <CardDescription>
+                  Detected {anomalies.length} anomalies using multiple detection methods
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {anomalies.length > 0 ? (
+                  <div className="space-y-3">
+                    {anomalies.map((anomaly, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-4 border rounded">
+                        <div className="flex items-center gap-3">
+                          <div>
+                            <div className="font-medium">
+                              {anomaly.timestamp.toLocaleString()}
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              {anomaly.method} • {anomaly.type}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge className={getSeverityColor(anomaly.severity)}>
+                            {anomaly.severity}
+                          </Badge>
+                          <div className="text-right">
+                            <div className="font-medium">{anomaly.value.toFixed(2)}</div>
+                            {anomaly.zScore && (
+                              <div className="text-xs text-muted-foreground">
+                                z-score: {anomaly.zScore.toFixed(2)}
+                              </div>
+                            )}
+                            {anomaly.deviation && (
+                              <div className="text-xs text-muted-foreground">
+                                deviation: {(anomaly.deviation * 100).toFixed(1)}%
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <div className="text-right">
-                    <span className="font-medium">{a.value}</span>
-                    <span className="ml-2 text-xs text-muted-foreground">
-                      {a.type} (z={a.zScore.toFixed(2)})
-                    </span>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No anomalies detected in the current dataset
                   </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       )}
     </div>
   );
