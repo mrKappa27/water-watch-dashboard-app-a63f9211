@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import FileUpload from "@/components/FileUpload";
 import DataDashboard from "@/components/DataDashboard";
 import NightlyConsumptionAnalysis from "@/components/NightlyConsumptionAnalysis";
+import LeakDetectionSettings from "@/components/LeakDetectionSettings";
 import UserMenu from "@/components/auth/UserMenu";
 import { ParsedDataPoint } from "@/types/dataTypes";
 import { useAuth } from "@/hooks/useAuth";
@@ -130,6 +130,7 @@ const Index = () => {
             <TabsTrigger value="upload">File Upload</TabsTrigger>
             <TabsTrigger value="dashboard">Dashboard & Analytics</TabsTrigger>
             <TabsTrigger value="leak-detection">Leak Detection</TabsTrigger>
+            <TabsTrigger value="leak-settings">Leak Settings</TabsTrigger>
           </TabsList>
 
           <TabsContent value="upload" className="mt-6">
@@ -172,6 +173,10 @@ const Index = () => {
             ) : (
               <NightlyConsumptionAnalysis />
             )}
+          </TabsContent>
+
+          <TabsContent value="leak-settings" className="mt-6">
+            <LeakDetectionSettings />
           </TabsContent>
         </Tabs>
       </div>

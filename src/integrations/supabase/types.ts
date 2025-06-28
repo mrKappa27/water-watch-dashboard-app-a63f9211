@@ -9,6 +9,39 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      leak_detection_thresholds: {
+        Row: {
+          created_at: string
+          good_threshold: number
+          high_threshold: number
+          id: string
+          location: string
+          updated_at: string
+          user_id: string
+          warning_threshold: number
+        }
+        Insert: {
+          created_at?: string
+          good_threshold?: number
+          high_threshold?: number
+          id?: string
+          location: string
+          updated_at?: string
+          user_id: string
+          warning_threshold?: number
+        }
+        Update: {
+          created_at?: string
+          good_threshold?: number
+          high_threshold?: number
+          id?: string
+          location?: string
+          updated_at?: string
+          user_id?: string
+          warning_threshold?: number
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
