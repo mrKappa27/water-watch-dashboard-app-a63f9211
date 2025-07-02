@@ -12,6 +12,7 @@ interface AuthContextType {
   signOut: () => Promise<{ error: any }>;
   signInWithProvider: (provider: 'google' | 'github' | 'twitter') => Promise<{ error: any }>;
   resetPassword: (email: string) => Promise<{ error: any }>;
+  updatePassword: (newPassword: string) => Promise<{ error: any }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -151,6 +152,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error };
   };
 
+  const updatePassword = async (newPassword: string) => {
+    if (isLocalhost) {
+      return { error: null };
+    }
+
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword
+    });
+    
+    return { error };
+  };
+
   const value = {
     user,
     session,
@@ -159,7 +172,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signIn,
     signOut,
     signInWithProvider,
-    resetPassword
+    resetPassword,
+    updatePassword
   };
 
   return (
