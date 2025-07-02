@@ -5,6 +5,8 @@ import { CheckCircle, AlertTriangle, XCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from "@/hooks/use-toast";
+import { getLeakDetectionThresholds, LeakDetectionThresholds } from "@/utils/leakDetectionThresholds";
+import { loadUserChartPreferences, ChartPreferences } from "@/utils/chartPreferences";
 
 interface DatabaseRecord {
   id: number;
@@ -28,6 +30,8 @@ const NightlyConsumptionAnalysis = () => {
   const [data, setData] = useState<DatabaseRecord[]>([]);
   const [statsData, setStatsData] = useState<StatsData>({ totalRecords: 0, locations: 0, latestUpdate: null });
   const [isLoading, setIsLoading] = useState(true);
+  const [thresholds, setThresholds] = useState<Record<string, LeakDetectionThresholds>>({});
+  const [chartPreferences, setChartPreferences] = useState<Record<string, ChartPreferences>>({});
 
   // Fetch data from database
   useEffect(() => {
@@ -224,12 +228,75 @@ const NightlyConsumptionAnalysis = () => {
     return Array.from(statsMap.values());
   }, [data]);
 
-  // Helper function to determine the status of a consumption value
-  const getConsumptionStatus = (value: number | null) => {
+  // Load thresholds and chart preferences for each location
+  useEffect(() => {
+    const loadSettings = async () => {
+      if (!user || locationStats.length === 0) return;
+
+      const thresholdsMap: Record<string, LeakDetectionThresholds> = {};
+      const preferencesMap: Record<string, ChartPreferences> = {};
+
+      await Promise.all(
+        locationStats.map(async (stat) => {
+          // Load thresholds
+          const locationThresholds = await getLeakDetectionThresholds(user.id, stat.location);
+          if (locationThresholds) {
+            thresholdsMap[stat.location] = locationThresholds;
+          } else {
+            // Default thresholds if none found
+            thresholdsMap[stat.location] = {
+              user_id: user.id,
+              location: stat.location,
+              good_threshold: 0.5,
+              warning_threshold: 2.0,
+              high_threshold: 5.0,
+            };
+          }
+
+          // Load chart preferences
+          const preferences = await loadUserChartPreferences(user.id, stat.location);
+          if (preferences) {
+            preferencesMap[stat.location] = preferences;
+          } else {
+            // Default to showing all deltas if no preferences found
+            preferencesMap[stat.location] = {
+              visibleParams: { DELTA1: true, DELTA2: true, DELTA3: true, DELTA4: true },
+              columnAliases: {},
+            };
+          }
+        })
+      );
+
+      setThresholds(thresholdsMap);
+      setChartPreferences(preferencesMap);
+    };
+
+    loadSettings();
+  }, [user, locationStats]);
+
+  // Helper function to determine the status of a consumption value using location-specific thresholds
+  const getConsumptionStatus = (value: number | null, location: string) => {
     if (value === null || value === undefined) return 'no-data';
-    if (value <= 0.5) return 'good'; // Near zero consumption
-    if (value <= 2.0) return 'warning'; // Low consumption
-    return 'high'; // High consumption (potential leak)
+    
+    const locationThresholds = thresholds[location];
+    if (!locationThresholds) {
+      // Fallback to default thresholds
+      if (value <= 0.5) return 'good';
+      if (value <= 2.0) return 'warning';
+      return 'high';
+    }
+
+    if (value <= locationThresholds.good_threshold) return 'good';
+    if (value <= locationThresholds.warning_threshold) return 'warning';
+    return 'high';
+  };
+
+  // Helper function to get enabled deltas for a location
+  const getEnabledDeltas = (location: string): number[] => {
+    const preferences = chartPreferences[location];
+    if (!preferences) return [1, 2, 3, 4]; // Show all by default
+
+    return [1, 2, 3, 4].filter(i => preferences.visibleParams[`DELTA${i}`] !== false);
   };
 
   // Helper function to get the appropriate icon and color
@@ -350,20 +417,26 @@ const NightlyConsumptionAnalysis = () => {
             </div>
           </div>
 
-          {/* Legend */}
-          <div className="flex flex-wrap gap-4 p-4 bg-muted/50 rounded-lg">
-            <div className="flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-green-500" />
-              <span className="text-sm">≤ 0.5: Good (No leak detected)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-yellow-500" />
-              <span className="text-sm">0.5-2.0: Warning (Monitor)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <XCircle className="w-4 h-4 text-red-500" />
-              <span className="text-sm">&gt; 2.0: High (Potential leak)</span>
-            </div>
+          {/* Dynamic Legend based on locations */}
+          <div className="space-y-2">
+            <h5 className="text-sm font-medium">Thresholds by Location:</h5>
+            {Object.entries(thresholds).map(([location, threshold]) => (
+              <div key={location} className="flex flex-wrap gap-4 p-3 bg-muted/30 rounded-lg">
+                <h6 className="text-sm font-medium">{location}:</h6>
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-green-500" />
+                  <span className="text-xs">≤ {threshold.good_threshold}: Good</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-yellow-500" />
+                  <span className="text-xs">{threshold.good_threshold}-{threshold.warning_threshold}: Warning</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <XCircle className="w-4 h-4 text-red-500" />
+                  <span className="text-xs">&gt; {threshold.warning_threshold}: High</span>
+                </div>
+              </div>
+            ))}
           </div>
 
           {Object.entries(dailyNightMinStats).map(([location, days]) => {
@@ -381,58 +454,66 @@ const NightlyConsumptionAnalysis = () => {
                 
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm border-collapse border border-border">
-                    <thead>
-                      <tr className="bg-muted/50">
-                        <th className="border border-border px-3 py-2 text-left">Date</th>
-                        {[1, 2, 3, 4].map(i => (
-                          <th key={i} className="border border-border px-3 py-2 text-center">
-                            DELTA{i}
-                          </th>
-                        ))}
-                        <th className="border border-border px-3 py-2 text-center">Daily Status</th>
-                      </tr>
-                    </thead>
+                     <thead>
+                       <tr className="bg-muted/50">
+                         <th className="border border-border px-3 py-2 text-left">Date</th>
+                         {getEnabledDeltas(location).map(i => (
+                           <th key={i} className="border border-border px-3 py-2 text-center">
+                             DELTA{i}
+                           </th>
+                         ))}
+                         <th className="border border-border px-3 py-2 text-center">Daily Status</th>
+                       </tr>
+                     </thead>
                     <tbody>
                       {Object.entries(days)
                         .sort(([dateA], [dateB]) => dateB.localeCompare(dateA)) // Sort by date descending
-                        .map(([date, stats]) => {
-                          // Calculate overall daily status
-                          const deltaValues = [1, 2, 3, 4].map(i => stats[`DELTA${i}`]);
-                          const validValues = deltaValues.filter(val => val !== null && val !== undefined) as number[];
-                          const hasGoodReading = validValues.some(val => val <= 0.5);
-                          const allHighValues = validValues.length > 0 && validValues.every(val => val > 2.0);
-                          const dailyStatus = validValues.length === 0 ? 'no-data' : 
-                                            hasGoodReading ? 'good' : 
-                                            allHighValues ? 'high' : 'warning';
+                         .map(([date, stats]) => {
+                           // Get enabled deltas for this location
+                           const enabledDeltas = getEnabledDeltas(location);
+                           
+                           // Calculate overall daily status using location-specific thresholds
+                           const deltaValues = enabledDeltas.map(i => stats[`DELTA${i}`]);
+                           const validValues = deltaValues.filter(val => val !== null && val !== undefined) as number[];
+                           
+                           const locationThresholds = thresholds[location];
+                           const goodThreshold = locationThresholds?.good_threshold || 0.5;
+                           const warningThreshold = locationThresholds?.warning_threshold || 2.0;
+                           
+                           const hasGoodReading = validValues.some(val => val <= goodThreshold);
+                           const allHighValues = validValues.length > 0 && validValues.every(val => val > warningThreshold);
+                           const dailyStatus = validValues.length === 0 ? 'no-data' : 
+                                             hasGoodReading ? 'good' : 
+                                             allHighValues ? 'high' : 'warning';
 
                           return (
                             <tr key={date} className="hover:bg-muted/25">
                               <td className="border border-border px-3 py-2 font-medium">
                                 {new Date(date).toLocaleDateString()}
                               </td>
-                              {[1, 2, 3, 4].map(i => {
-                                const val = stats[`DELTA${i}`];
-                                const status = getConsumptionStatus(val);
-                                
-                                return (
-                                  <td key={i} className="border border-border px-3 py-2 text-center">
-                                    <div className="flex items-center justify-center gap-2">
-                                      {getStatusIcon(status)}
-                                      {val === null || val === undefined ? (
-                                        <span className="text-muted-foreground">-</span>
-                                      ) : (
-                                        <span className={
-                                          status === 'good' ? 'text-green-700' :
-                                          status === 'warning' ? 'text-yellow-700' :
-                                          status === 'high' ? 'text-red-700' : ''
-                                        }>
-                                          {val.toFixed(2)}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </td>
-                                );
-                              })}
+                               {getEnabledDeltas(location).map(i => {
+                                 const val = stats[`DELTA${i}`];
+                                 const status = getConsumptionStatus(val, location);
+                                 
+                                 return (
+                                   <td key={i} className="border border-border px-3 py-2 text-center">
+                                     <div className="flex items-center justify-center gap-2">
+                                       {getStatusIcon(status)}
+                                       {val === null || val === undefined ? (
+                                         <span className="text-muted-foreground">-</span>
+                                       ) : (
+                                         <span className={
+                                           status === 'good' ? 'text-green-700' :
+                                           status === 'warning' ? 'text-yellow-700' :
+                                           status === 'high' ? 'text-red-700' : ''
+                                         }>
+                                           {val.toFixed(2)}
+                                         </span>
+                                       )}
+                                     </div>
+                                   </td>
+                                 );
+                               })}
                               <td className="border border-border px-3 py-2 text-center">
                                 {getStatusBadge(dailyStatus)}
                               </td>
@@ -447,13 +528,17 @@ const NightlyConsumptionAnalysis = () => {
                 <div className="mt-4 p-3 bg-muted/30 rounded-lg">
                   <div className="text-sm text-muted-foreground">
                     <strong>Summary:</strong> {Object.keys(days).length} days analyzed from {locationStat?.totalRecords || 0} total records. 
-                    {(() => {
-                      const totalDays = Object.keys(days).length;
-                      const goodDays = Object.values(days).filter(dayStats => {
-                        const deltaValues = [1, 2, 3, 4].map(i => dayStats[`DELTA${i}`]);
-                        const validValues = deltaValues.filter(val => val !== null && val !== undefined) as number[];
-                        return validValues.some(val => val <= 0.5);
-                      }).length;
+                     {(() => {
+                       const totalDays = Object.keys(days).length;
+                       const locationThresholds = thresholds[location];
+                       const goodThreshold = locationThresholds?.good_threshold || 0.5;
+                       
+                       const goodDays = Object.values(days).filter(dayStats => {
+                         const enabledDeltas = getEnabledDeltas(location);
+                         const deltaValues = enabledDeltas.map(i => dayStats[`DELTA${i}`]);
+                         const validValues = deltaValues.filter(val => val !== null && val !== undefined) as number[];
+                         return validValues.some(val => val <= goodThreshold);
+                       }).length;
                       
                       return totalDays > 0 ? 
                         ` ${goodDays} days (${((goodDays / totalDays) * 100).toFixed(0)}%) show good consumption patterns.` :
