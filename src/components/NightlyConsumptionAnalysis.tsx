@@ -41,18 +41,17 @@ const NightlyConsumptionAnalysis = () => {
       setIsLoading(true);
       try {
         // First, get the total count and latest record datetime with dedicated queries
+        // Note: RLS policies now handle admin access automatically
         const [countResult, latestResult, locationsResult] = await Promise.all([
           // Get total count
           supabase
             .from('water_consumption_metrics')
-            .select('*', { count: 'exact', head: true })
-            .eq('user_id', user.id),
+            .select('*', { count: 'exact', head: true }),
           
           // Get latest record datetime
           supabase
             .from('water_consumption_metrics')
             .select('time')
-            .eq('user_id', user.id)
             .order('time', { ascending: false })
             .limit(1)
             .single(),
@@ -61,7 +60,6 @@ const NightlyConsumptionAnalysis = () => {
           supabase
             .from('water_consumption_metrics')
             .select('location')
-            .eq('user_id', user.id)
             .not('location', 'is', null)
         ]);
 
@@ -100,7 +98,6 @@ const NightlyConsumptionAnalysis = () => {
           const { data: dbData, error } = await supabase
             .from('water_consumption_metrics')
             .select('id, location, time, delta1, delta2, delta3, delta4')
-            .eq('user_id', user.id)
             .order('time', { ascending: false })
             .range(from, from + batchSize - 1);
 
@@ -236,12 +233,18 @@ const NightlyConsumptionAnalysis = () => {
       const thresholdsMap: Record<string, LeakDetectionThresholds> = {};
       const preferencesMap: Record<string, ChartPreferences> = {};
 
+      // For each location, try to load existing settings or use defaults
       await Promise.all(
         locationStats.map(async (stat) => {
-          // Load thresholds
-          const locationThresholds = await getLeakDetectionThresholds(user.id, stat.location);
-          if (locationThresholds) {
-            thresholdsMap[stat.location] = locationThresholds;
+          // Try to load existing thresholds for this location
+          const { data: existingThresholds } = await supabase
+            .from('leak_detection_thresholds')
+            .select('*')
+            .eq('location', stat.location)
+            .limit(1);
+
+          if (existingThresholds && existingThresholds.length > 0) {
+            thresholdsMap[stat.location] = existingThresholds[0];
           } else {
             // Default thresholds if none found
             thresholdsMap[stat.location] = {
@@ -253,10 +256,18 @@ const NightlyConsumptionAnalysis = () => {
             };
           }
 
-          // Load chart preferences
-          const preferences = await loadUserChartPreferences(user.id, stat.location);
-          if (preferences) {
-            preferencesMap[stat.location] = preferences;
+          // Try to load existing chart preferences for this location
+          const { data: existingPreferences } = await supabase
+            .from('user_chart_preferences')
+            .select('*')
+            .eq('location', stat.location)
+            .limit(1);
+
+          if (existingPreferences && existingPreferences.length > 0) {
+            preferencesMap[stat.location] = {
+              visibleParams: existingPreferences[0].visible_params as Record<string, boolean>,
+              columnAliases: existingPreferences[0].column_aliases as Record<string, string>,
+            };
           } else {
             // Default to showing all deltas if no preferences found
             preferencesMap[stat.location] = {
