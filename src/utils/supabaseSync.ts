@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { ParsedDataPoint, LocationStats } from '@/types/dataTypes';
 
@@ -22,9 +23,34 @@ export const checkFileExists = async (filename: string, userId: string): Promise
   }
 };
 
+// Helper function to check if user is admin
+const checkIsAdmin = async (userId: string): Promise<boolean> => {
+  try {
+    const { data, error } = await supabase
+      .rpc('has_role', { 
+        _user_id: userId, 
+        _role: 'admin' 
+      });
+
+    if (error) {
+      console.error('Error checking admin status:', error);
+      return false;
+    }
+
+    return data === true;
+  } catch (error) {
+    console.error('Error checking admin status:', error);
+    return false;
+  }
+};
+
 export const fetchDataFromDatabase = async (userId: string): Promise<ParsedDataPoint[]> => {
   try {
-    console.log('Fetching all data from database for user:', userId);
+    console.log('Fetching data from database for user:', userId);
+    
+    // Check if user is admin
+    const isAdmin = await checkIsAdmin(userId);
+    console.log('User is admin:', isAdmin);
     
     let allData: any[] = [];
     let hasMore = true;
@@ -34,12 +60,19 @@ export const fetchDataFromDatabase = async (userId: string): Promise<ParsedDataP
     while (hasMore) {
       console.log(`Fetching page ${page + 1} (records ${page * pageSize} to ${(page + 1) * pageSize})...`);
       
-      const { data, error } = await supabase
+      // Build query - don't filter by user_id if admin
+      let query = supabase
         .from('water_consumption_metrics')
         .select('*')
-        .eq('user_id', userId)
         .order('time', { ascending: true })
         .range(page * pageSize, (page + 1) * pageSize - 1);
+      
+      // Only filter by user_id if not admin
+      if (!isAdmin) {
+        query = query.eq('user_id', userId);
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         console.error('Error fetching data from database:', error);
@@ -188,10 +221,19 @@ export const syncDataToSupabase = async (data: ParsedDataPoint[], userId: string
 
 export const getTotalRecordCount = async (userId: string): Promise<number> => {
   try {
-    const { count, error } = await supabase
+    // Check if user is admin
+    const isAdmin = await checkIsAdmin(userId);
+    
+    let query = supabase
       .from('water_consumption_metrics')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', userId);
+      .select('*', { count: 'exact', head: true });
+    
+    // Only filter by user_id if not admin
+    if (!isAdmin) {
+      query = query.eq('user_id', userId);
+    }
+
+    const { count, error } = await query;
 
     if (error) {
       console.error('Error getting total record count:', error);
@@ -207,12 +249,21 @@ export const getTotalRecordCount = async (userId: string): Promise<number> => {
 
 export const getLocationStats = async (userId: string): Promise<LocationStats[]> => {
   try {
+    // Check if user is admin
+    const isAdmin = await checkIsAdmin(userId);
+    
     // Get unique locations and their record counts
-    const { data: locationData, error: locationError } = await supabase
+    let locationQuery = supabase
       .from('water_consumption_metrics')
       .select('location')
-      .eq('user_id', userId)
       .not('location', 'is', null);
+    
+    // Only filter by user_id if not admin
+    if (!isAdmin) {
+      locationQuery = locationQuery.eq('user_id', userId);
+    }
+
+    const { data: locationData, error: locationError } = await locationQuery;
 
     if (locationError) {
       console.error('Error fetching locations:', locationError);
@@ -229,11 +280,16 @@ export const getLocationStats = async (userId: string): Promise<LocationStats[]>
       if (!location) continue;
 
       // Get count for this location
-      const { count, error: countError } = await supabase
+      let countQuery = supabase
         .from('water_consumption_metrics')
         .select('*', { count: 'exact', head: true })
-        .eq('user_id', userId)
         .eq('location', location);
+      
+      if (!isAdmin) {
+        countQuery = countQuery.eq('user_id', userId);
+      }
+
+      const { count, error: countError } = await countQuery;
 
       if (countError) {
         console.error(`Error getting count for location ${location}:`, countError);
@@ -241,12 +297,17 @@ export const getLocationStats = async (userId: string): Promise<LocationStats[]>
       }
 
       // Get date range and sample data for averages
-      const { data: dateRangeData, error: dateError } = await supabase
+      let dataQuery = supabase
         .from('water_consumption_metrics')
         .select('time, tot1, tot2, tot3, tot4, temp, vbat')
-        .eq('user_id', userId)
         .eq('location', location)
         .order('time', { ascending: true });
+      
+      if (!isAdmin) {
+        dataQuery = dataQuery.eq('user_id', userId);
+      }
+
+      const { data: dateRangeData, error: dateError } = await dataQuery;
 
       if (dateError || !dateRangeData || dateRangeData.length === 0) {
         console.error(`Error getting date range for location ${location}:`, dateError);
@@ -291,13 +352,28 @@ export const getLocationStats = async (userId: string): Promise<LocationStats[]>
 
 export const getLastUpdateTime = async (userId: string): Promise<Date | null> => {
   try {
-    const { data, error } = await supabase
+    // Check if user is admin
+    const isAdmin = await checkIsAdmin(userId);
+    
+    let query = supabase
       .from('water_consumption_metrics')
       .select('time')
-      .eq('user_id', userId)
       .order('time', { ascending: false })
       .limit(1)
       .single();
+    
+    // Only filter by user_id if not admin
+    if (!isAdmin) {
+      query = supabase
+        .from('water_consumption_metrics')
+        .select('time')
+        .eq('user_id', userId)
+        .order('time', { ascending: false })
+        .limit(1)
+        .single();
+    }
+
+    const { data, error } = await query;
 
     if (error || !data) {
       console.error('Error getting last update time:', error);
