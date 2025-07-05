@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -56,7 +57,7 @@ const Index = () => {
     loadDataFromDatabase();
   }, [user, toast]);
 
-  const handleDataParsed = async (newData: ParsedDataPoint[]) => {
+  const handleUploadSuccess = async () => {
     // Refresh data from database after new upload
     if (user) {
       console.log('Data uploaded, refreshing from database...');
@@ -142,7 +143,7 @@ const Index = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <FileUpload onDataParsed={handleDataParsed} />
+                <FileUpload onUploadSuccess={handleUploadSuccess} />
               </CardContent>
             </Card>
           </TabsContent>
