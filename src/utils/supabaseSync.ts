@@ -61,10 +61,12 @@ export const fetchDataFromDatabase = async (userId: string): Promise<ParsedDataP
       console.log(`Fetching page ${page + 1} (records ${page * pageSize} to ${(page + 1) * pageSize})...`);
       
       // Build query - don't filter by user_id if admin
+      // ENFORCE ASCENDING ORDER BY TIME for chart data consistency
       let query = supabase
         .from('water_consumption_metrics')
         .select('*')
         .order('time', { ascending: true })
+        .order('id', { ascending: true }) // Secondary sort by id for consistent ordering when timestamps are identical
         .range(page * pageSize, (page + 1) * pageSize - 1);
       
       // Only filter by user_id if not admin
@@ -296,7 +298,7 @@ export const getLocationStats = async (userId: string): Promise<LocationStats[]>
         continue;
       }
 
-      // Get date range and sample data for averages
+      // Get date range and sample data for averages - ENSURE ASCENDING ORDER
       let dataQuery = supabase
         .from('water_consumption_metrics')
         .select('time, tot1, tot2, tot3, tot4, temp, vbat')
