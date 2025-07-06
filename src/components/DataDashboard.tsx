@@ -15,9 +15,11 @@ import { useAuth } from "@/hooks/useAuth";
 interface DataDashboardProps {
   data: ParsedDataPoint[];
   onClearData: () => void;
+  dateFrom: Date;
+  dateTo: Date;
 }
 
-const DataDashboard = ({ data, onClearData }: DataDashboardProps) => {
+const DataDashboard = ({ data, onClearData, dateFrom, dateTo }: DataDashboardProps) => {
   const { user } = useAuth();
   const [actualLocationStats, setActualLocationStats] = useState<LocationStats[]>([]);
   const [isLoadingStats, setIsLoadingStats] = useState(true);
@@ -71,7 +73,7 @@ const DataDashboard = ({ data, onClearData }: DataDashboardProps) => {
       
       setIsLoadingStats(true);
       try {
-        const stats = await getLocationStats(user.id);
+        const stats = await getLocationStats(user.id, dateFrom, dateTo);
         setActualLocationStats(stats);
       } catch (error) {
         console.error('Error fetching location stats:', error);
@@ -81,7 +83,7 @@ const DataDashboard = ({ data, onClearData }: DataDashboardProps) => {
     };
 
     fetchLocationStats();
-  }, [user, data]); // Re-fetch when data changes (after upload)
+  }, [user, data, dateFrom, dateTo]); // Re-fetch when data or date range changes
 
   if (data.length === 0) {
     return (
@@ -91,7 +93,7 @@ const DataDashboard = ({ data, onClearData }: DataDashboardProps) => {
             <BarChart className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold mb-2">No Data Available</h3>
             <p className="text-muted-foreground">
-              Upload some CSV files to see your dashboard analytics
+              No data found for the selected date range. Try adjusting the date filter or upload some CSV files.
             </p>
           </div>
         </CardContent>
@@ -108,11 +110,16 @@ const DataDashboard = ({ data, onClearData }: DataDashboardProps) => {
           <h2 className="text-2xl font-bold">Dashboard Analytics</h2>
           <p className="text-muted-foreground">
             {data.length} data points from {displayStats.length} locations
+            {dateFrom && dateTo && (
+              <span className="block text-sm">
+                ({dateFrom.toLocaleDateString()} - {dateTo.toLocaleDateString()})
+              </span>
+            )}
           </p>
         </div>
         <Button variant="outline" onClick={onClearData}>
           <Trash2 className="w-4 h-4 mr-2" />
-          Clear All Data
+          Refresh Data
         </Button>
       </div>
 
@@ -177,7 +184,7 @@ const DataDashboard = ({ data, onClearData }: DataDashboardProps) => {
         </TabsList>
 
         <TabsContent value="overview" className="mt-6">
-          <StatsOverview data={data} locationStats={displayStats} />
+          <StatsOverview data={data} locationStats={displayStats} dateFrom={dateFrom} dateTo={dateTo} />
         </TabsContent>
 
         <TabsContent value="charts" className="mt-6">

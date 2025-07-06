@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { ParsedDataPoint, LocationStats } from '@/types/dataTypes';
 
@@ -44,9 +43,13 @@ const checkIsAdmin = async (userId: string): Promise<boolean> => {
   }
 };
 
-export const fetchDataFromDatabase = async (userId: string): Promise<ParsedDataPoint[]> => {
+export const fetchDataFromDatabase = async (
+  userId: string, 
+  dateFrom?: Date, 
+  dateTo?: Date
+): Promise<ParsedDataPoint[]> => {
   try {
-    console.log('Fetching data from database for user:', userId);
+    console.log('Fetching data from database for user:', userId, 'Date range:', dateFrom, 'to', dateTo);
     
     // Check if user is admin
     const isAdmin = await checkIsAdmin(userId);
@@ -72,6 +75,17 @@ export const fetchDataFromDatabase = async (userId: string): Promise<ParsedDataP
       // Only filter by user_id if not admin
       if (!isAdmin) {
         query = query.eq('user_id', userId);
+      }
+
+      // Add date range filtering if provided
+      if (dateFrom) {
+        query = query.gte('time', dateFrom.toISOString());
+      }
+      if (dateTo) {
+        // Add 23:59:59 to include the entire end date
+        const endOfDay = new Date(dateTo);
+        endOfDay.setHours(23, 59, 59, 999);
+        query = query.lte('time', endOfDay.toISOString());
       }
 
       const { data, error } = await query;
@@ -221,7 +235,7 @@ export const syncDataToSupabase = async (data: ParsedDataPoint[], userId: string
   }
 };
 
-export const getTotalRecordCount = async (userId: string): Promise<number> => {
+export const getTotalRecordCount = async (userId: string, dateFrom?: Date, dateTo?: Date): Promise<number> => {
   try {
     // Check if user is admin
     const isAdmin = await checkIsAdmin(userId);
@@ -233,6 +247,16 @@ export const getTotalRecordCount = async (userId: string): Promise<number> => {
     // Only filter by user_id if not admin
     if (!isAdmin) {
       query = query.eq('user_id', userId);
+    }
+
+    // Add date range filtering if provided
+    if (dateFrom) {
+      query = query.gte('time', dateFrom.toISOString());
+    }
+    if (dateTo) {
+      const endOfDay = new Date(dateTo);
+      endOfDay.setHours(23, 59, 59, 999);
+      query = query.lte('time', endOfDay.toISOString());
     }
 
     const { count, error } = await query;
@@ -249,7 +273,7 @@ export const getTotalRecordCount = async (userId: string): Promise<number> => {
   }
 };
 
-export const getLocationStats = async (userId: string): Promise<LocationStats[]> => {
+export const getLocationStats = async (userId: string, dateFrom?: Date, dateTo?: Date): Promise<LocationStats[]> => {
   try {
     // Check if user is admin
     const isAdmin = await checkIsAdmin(userId);
@@ -263,6 +287,16 @@ export const getLocationStats = async (userId: string): Promise<LocationStats[]>
     // Only filter by user_id if not admin
     if (!isAdmin) {
       locationQuery = locationQuery.eq('user_id', userId);
+    }
+
+    // Add date range filtering if provided
+    if (dateFrom) {
+      locationQuery = locationQuery.gte('time', dateFrom.toISOString());
+    }
+    if (dateTo) {
+      const endOfDay = new Date(dateTo);
+      endOfDay.setHours(23, 59, 59, 999);
+      locationQuery = locationQuery.lte('time', endOfDay.toISOString());
     }
 
     const { data: locationData, error: locationError } = await locationQuery;
@@ -291,6 +325,16 @@ export const getLocationStats = async (userId: string): Promise<LocationStats[]>
         countQuery = countQuery.eq('user_id', userId);
       }
 
+      // Add date range filtering if provided
+      if (dateFrom) {
+        countQuery = countQuery.gte('time', dateFrom.toISOString());
+      }
+      if (dateTo) {
+        const endOfDay = new Date(dateTo);
+        endOfDay.setHours(23, 59, 59, 999);
+        countQuery = countQuery.lte('time', endOfDay.toISOString());
+      }
+
       const { count, error: countError } = await countQuery;
 
       if (countError) {
@@ -307,6 +351,16 @@ export const getLocationStats = async (userId: string): Promise<LocationStats[]>
       
       if (!isAdmin) {
         dataQuery = dataQuery.eq('user_id', userId);
+      }
+
+      // Add date range filtering if provided
+      if (dateFrom) {
+        dataQuery = dataQuery.gte('time', dateFrom.toISOString());
+      }
+      if (dateTo) {
+        const endOfDay = new Date(dateTo);
+        endOfDay.setHours(23, 59, 59, 999);
+        dataQuery = dataQuery.lte('time', endOfDay.toISOString());
       }
 
       const { data: dateRangeData, error: dateError } = await dataQuery;
@@ -352,7 +406,7 @@ export const getLocationStats = async (userId: string): Promise<LocationStats[]>
   }
 };
 
-export const getLastUpdateTime = async (userId: string): Promise<Date | null> => {
+export const getLastUpdateTime = async (userId: string, dateFrom?: Date, dateTo?: Date): Promise<Date | null> => {
   try {
     // Check if user is admin
     const isAdmin = await checkIsAdmin(userId);
@@ -361,21 +415,24 @@ export const getLastUpdateTime = async (userId: string): Promise<Date | null> =>
       .from('water_consumption_metrics')
       .select('time')
       .order('time', { ascending: false })
-      .limit(1)
-      .single();
+      .limit(1);
     
     // Only filter by user_id if not admin
     if (!isAdmin) {
-      query = supabase
-        .from('water_consumption_metrics')
-        .select('time')
-        .eq('user_id', userId)
-        .order('time', { ascending: false })
-        .limit(1)
-        .single();
+      query = query.eq('user_id', userId);
     }
 
-    const { data, error } = await query;
+    // Add date range filtering if provided
+    if (dateFrom) {
+      query = query.gte('time', dateFrom.toISOString());
+    }
+    if (dateTo) {
+      const endOfDay = new Date(dateTo);
+      endOfDay.setHours(23, 59, 59, 999);
+      query = query.lte('time', endOfDay.toISOString());
+    }
+
+    const { data, error } = await query.single();
 
     if (error || !data) {
       console.error('Error getting last update time:', error);

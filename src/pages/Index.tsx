@@ -9,6 +9,7 @@ import DataDashboard from "@/components/DataDashboard";
 import NightlyConsumptionAnalysis from "@/components/NightlyConsumptionAnalysis";
 import LeakDetectionSettings from "@/components/LeakDetectionSettings";
 import UserMenu from "@/components/auth/UserMenu";
+import DateRangeFilter from "@/components/DateRangeFilter";
 import { ParsedDataPoint } from "@/types/dataTypes";
 import { useAuth } from "@/hooks/useAuth";
 import { fetchDataFromDatabase } from "@/utils/supabaseSync";
@@ -21,26 +22,34 @@ const Index = () => {
   const [isLoadingData, setIsLoadingData] = useState(false);
   const { toast } = useToast();
 
+  // Date range state with default of 1 week
+  const [dateFrom, setDateFrom] = useState<Date>(() => {
+    const date = new Date();
+    date.setDate(date.getDate() - 7); // 1 week ago
+    return date;
+  });
+  const [dateTo, setDateTo] = useState<Date>(new Date());
+
   useEffect(() => {
     if (!loading && !user) {
       navigate('/auth');
     }
   }, [user, loading, navigate]);
 
-  // Fetch data from database when user is available
+  // Fetch data from database when user is available or date range changes
   useEffect(() => {
     const loadDataFromDatabase = async () => {
       if (!user) return;
       
-      console.log('Starting to load data from database...');
+      console.log('Starting to load data from database with date range...', dateFrom, 'to', dateTo);
       setIsLoadingData(true);
       try {
-        const data = await fetchDataFromDatabase(user.id);
+        const data = await fetchDataFromDatabase(user.id, dateFrom, dateTo);
         setParsedData(data);
         console.log('Successfully loaded data from database:', data.length, 'records');
         
         if (data.length === 0) {
-          console.log('No data found in database for user:', user.id);
+          console.log('No data found in database for user:', user.id, 'in date range:', dateFrom, 'to', dateTo);
         }
       } catch (error) {
         console.error('Error loading data from database:', error);
@@ -55,7 +64,7 @@ const Index = () => {
     };
 
     loadDataFromDatabase();
-  }, [user, toast]);
+  }, [user, dateFrom, dateTo, toast]);
 
   const handleUploadSuccess = async () => {
     // Refresh data from database after new upload
@@ -63,7 +72,7 @@ const Index = () => {
       console.log('Data uploaded, refreshing from database...');
       setIsLoadingData(true);
       try {
-        const data = await fetchDataFromDatabase(user.id);
+        const data = await fetchDataFromDatabase(user.id, dateFrom, dateTo);
         setParsedData(data);
         console.log('Refreshed data after upload:', data.length, 'records');
       } catch (error) {
@@ -80,7 +89,7 @@ const Index = () => {
     if (user) {
       setIsLoadingData(true);
       try {
-        const data = await fetchDataFromDatabase(user.id);
+        const data = await fetchDataFromDatabase(user.id, dateFrom, dateTo);
         setParsedData(data);
       } catch (error) {
         console.error('Error refreshing data from database:', error);
@@ -126,6 +135,24 @@ const Index = () => {
           </div>
         </div>
 
+        {/* Date Range Filter */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Date Range Filter</CardTitle>
+            <CardDescription>
+              Filter data by date range to improve performance. Default shows last 7 days.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DateRangeFilter
+              dateFrom={dateFrom}
+              dateTo={dateTo}
+              onDateFromChange={setDateFrom}
+              onDateToChange={setDateTo}
+            />
+          </CardContent>
+        </Card>
+
         <Tabs defaultValue="upload" className="w-full">
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="upload">File Upload</TabsTrigger>
@@ -158,7 +185,12 @@ const Index = () => {
                 </CardContent>
               </Card>
             ) : (
-              <DataDashboard data={parsedData} onClearData={handleClearData} />
+              <DataDashboard 
+                data={parsedData} 
+                onClearData={handleClearData}
+                dateFrom={dateFrom}
+                dateTo={dateTo}
+              />
             )}
           </TabsContent>
 
@@ -172,7 +204,7 @@ const Index = () => {
                 </CardContent>
               </Card>
             ) : (
-              <NightlyConsumptionAnalysis />
+              <NightlyConsumptionAnalysis dateFrom={dateFrom} dateTo={dateTo} />
             )}
           </TabsContent>
 

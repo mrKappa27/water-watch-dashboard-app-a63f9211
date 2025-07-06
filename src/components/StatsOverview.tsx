@@ -10,9 +10,11 @@ import { useAuth } from "@/hooks/useAuth";
 interface StatsOverviewProps {
   data: ParsedDataPoint[];
   locationStats: LocationStats[];
+  dateFrom: Date;
+  dateTo: Date;
 }
 
-const StatsOverview = ({ data, locationStats }: StatsOverviewProps) => {
+const StatsOverview = ({ data, locationStats, dateFrom, dateTo }: StatsOverviewProps) => {
   const { user } = useAuth();
   const [totalDataPoints, setTotalDataPoints] = useState(0);
   const [actualLocationStats, setActualLocationStats] = useState<LocationStats[]>([]);
@@ -26,9 +28,9 @@ const StatsOverview = ({ data, locationStats }: StatsOverviewProps) => {
       setIsLoading(true);
       try {
         const [count, stats, lastUpdateTime] = await Promise.all([
-          getTotalRecordCount(user.id),
-          getLocationStats(user.id),
-          getLastUpdateTime(user.id)
+          getTotalRecordCount(user.id, dateFrom, dateTo),
+          getLocationStats(user.id, dateFrom, dateTo),
+          getLastUpdateTime(user.id, dateFrom, dateTo)
         ]);
 
         setTotalDataPoints(count);
@@ -42,7 +44,7 @@ const StatsOverview = ({ data, locationStats }: StatsOverviewProps) => {
     };
 
     fetchStats();
-  }, [user]);
+  }, [user, dateFrom, dateTo]);
 
   const uniqueLocations = actualLocationStats.length;
   const dateRange = actualLocationStats.length > 0 && lastUpdate ? {
@@ -87,7 +89,7 @@ const StatsOverview = ({ data, locationStats }: StatsOverviewProps) => {
         <CardContent>
           <div className="text-2xl font-bold">{totalDataPoints.toLocaleString()}</div>
           <p className="text-xs text-muted-foreground">
-            Across all locations
+            In selected date range
           </p>
         </CardContent>
       </Card>
@@ -100,7 +102,7 @@ const StatsOverview = ({ data, locationStats }: StatsOverviewProps) => {
         <CardContent>
           <div className="text-2xl font-bold">{uniqueLocations}</div>
           <p className="text-xs text-muted-foreground">
-            Unique monitoring sites
+            Monitoring sites with data
           </p>
         </CardContent>
       </Card>
@@ -112,10 +114,10 @@ const StatsOverview = ({ data, locationStats }: StatsOverviewProps) => {
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">
-            {dateRange ? Math.ceil((dateRange.end.getTime() - dateRange.start.getTime()) / (1000 * 60 * 60 * 24)) : 0}
+            {Math.ceil((dateTo.getTime() - dateFrom.getTime()) / (1000 * 60 * 60 * 24))}
           </div>
           <p className="text-xs text-muted-foreground">
-            Days of data
+            Days selected
           </p>
         </CardContent>
       </Card>
@@ -136,7 +138,9 @@ const StatsOverview = ({ data, locationStats }: StatsOverviewProps) => {
       <Card className="md:col-span-2 lg:col-span-4">
         <CardHeader>
           <CardTitle>Location Details</CardTitle>
-          <CardDescription>Detailed statistics for each monitoring location</CardDescription>
+          <CardDescription>
+            Detailed statistics for each monitoring location in the selected date range
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
