@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -42,27 +41,94 @@ const FileUpload: React.FC<FileUploadProps> = ({ onUploadSuccess }) => {
     const lines = csvText.split('\n').filter(line => line.trim().length > 0);
     if (lines.length <= 1) return []; // Check if there's more than just the header
 
-    const headers = lines[0].split(',').map(header => header.trim().toLowerCase());
+    const rawHeaders = lines[0].split(';').map(header => header.trim());
+    console.log('Raw CSV Headers found:', rawHeaders);
+
+    // Detect header type and create mapping
+    const isNonStandardHeader = rawHeaders.includes('TRIGGER') && rawHeaders.includes('TIMESTAMP');
+    
+    let headerMapping: { [key: string]: string } = {};
+    
+    if (isNonStandardHeader) {
+      // Map non-standard headers to standard format
+      console.log('Detected non-standard header format, applying mapping...');
+      headerMapping = {
+        'INDEX': 'index',
+        'TRIGGER': 'type',
+        'TIMESTAMP': 'time',
+        'POW': 'pow',
+        'VBAT': 'vbat',
+        'DIN1': 'din1',
+        'DIN2': 'din2',
+        'DIN3': 'din3',
+        'DIN4': 'din4',
+        'DOUT1': 'dout1',
+        'DOUT2': 'dout2',
+        'TOT1': 'tot1',
+        'CNT1': 'cnt1',
+        'DELTA1': 'delta1',
+        'TOT2': 'tot2',
+        'CNT2': 'cnt2',
+        'DELTA2': 'delta2',
+        'TOT3': 'tot3',
+        'CNT3': 'cnt3',
+        'DELTA3': 'delta3',
+        'TOT4': 'tot4',
+        'CNT4': 'cnt4',
+        'DELTA4': 'delta4',
+        'GSM': 'gsm',
+        'TEMP': 'temp',
+        'TAVG': 'tavg',
+        'TMIN': 'tmin',
+        'TMAX': 'tmax'
+      };
+    } else {
+      // Standard header mapping
+      console.log('Detected standard header format');
+      headerMapping = {
+        'INDEX': 'index',
+        'TYPE': 'type',
+        'TIME': 'time',
+        'DIN1': 'din1',
+        'DIN2': 'din2',
+        'DIN3': 'din3',
+        'DIN4': 'din4',
+        'DOUT1': 'dout1',
+        'DOUT2': 'dout2',
+        'VBAT': 'vbat',
+        'POW': 'pow',
+        'TOT1': 'tot1',
+        'CNT1': 'cnt1',
+        'DELTA1': 'delta1',
+        'TOT2': 'tot2',
+        'CNT2': 'cnt2',
+        'DELTA2': 'delta2',
+        'TOT3': 'tot3',
+        'CNT3': 'cnt3',
+        'DELTA3': 'delta3',
+        'TOT4': 'tot4',
+        'CNT4': 'cnt4',
+        'DELTA4': 'delta4'
+      };
+    }
+
     const data = [];
 
-    console.log('CSV Headers found:', headers);
-
     for (let i = 1; i < lines.length; i++) {
-      const values = lines[i].split(',').map(value => value.trim());
-      if (values.length !== headers.length || values.every(val => val === '')) continue; // Skip empty or malformed lines
+      const values = lines[i].split(';').map(value => value.trim());
+      if (values.length !== rawHeaders.length || values.every(val => val === '')) continue; // Skip empty or malformed lines
 
       const row: { [key: string]: string } = {};
-      for (let j = 0; j < headers.length; j++) {
-        // Normalize header names to match database schema
-        let normalizedHeader = headers[j].toLowerCase();
+      
+      for (let j = 0; j < rawHeaders.length; j++) {
+        const rawHeader = rawHeaders[j].toUpperCase();
+        const mappedHeader = headerMapping[rawHeader];
         
-        // Map common variations to standard names
-        if (normalizedHeader === 'timestamp' || normalizedHeader === 'datetime') {
-          normalizedHeader = 'time';
+        if (mappedHeader) {
+          row[mappedHeader] = values[j];
         }
-        
-        row[normalizedHeader] = values[j];
       }
+      
       data.push(row);
     }
 
@@ -284,7 +350,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onUploadSuccess }) => {
         <Alert className="mt-4">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            Each file can only be imported once globally. Multiple files can be selected and uploaded simultaneously.
+            Each file can only be imported once globally. Multiple files can be selected and uploaded simultaneously. Both standard and non-standard CSV header formats are supported.
           </AlertDescription>
         </Alert>
       </CardContent>
