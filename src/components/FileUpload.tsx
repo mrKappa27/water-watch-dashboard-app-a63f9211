@@ -37,6 +37,58 @@ const FileUpload: React.FC<FileUploadProps> = ({ onUploadSuccess }) => {
     }
   };
 
+  const parseDateFromCSV = (dateString: string): Date => {
+    // Handle DAY/MONTH/YEAR HOUR:MINUTE:SECOND format
+    if (!dateString || dateString.trim() === '') {
+      return new Date();
+    }
+    
+    try {
+      // Split date and time parts
+      const parts = dateString.trim().split(' ');
+      if (parts.length !== 2) {
+        throw new Error('Invalid date format');
+      }
+      
+      const datePart = parts[0]; // DD/MM/YYYY
+      const timePart = parts[1]; // HH:MM:SS
+      
+      // Split date components
+      const dateComponents = datePart.split('/');
+      if (dateComponents.length !== 3) {
+        throw new Error('Invalid date part format');
+      }
+      
+      const day = parseInt(dateComponents[0], 10);
+      const month = parseInt(dateComponents[1], 10) - 1; // Month is 0-indexed in JavaScript
+      const year = parseInt(dateComponents[2], 10);
+      
+      // Split time components
+      const timeComponents = timePart.split(':');
+      if (timeComponents.length !== 3) {
+        throw new Error('Invalid time part format');
+      }
+      
+      const hours = parseInt(timeComponents[0], 10);
+      const minutes = parseInt(timeComponents[1], 10);
+      const seconds = parseInt(timeComponents[2], 10);
+      
+      // Create date object
+      const date = new Date(year, month, day, hours, minutes, seconds);
+      
+      // Validate the created date
+      if (isNaN(date.getTime())) {
+        throw new Error('Invalid date created');
+      }
+      
+      return date;
+    } catch (error) {
+      console.error('Error parsing date:', dateString, error);
+      // Return current date as fallback
+      return new Date();
+    }
+  };
+
   const parseCSVContent = (csvText: string): any[] => {
     const lines = csvText.split('\n').filter(line => line.trim().length > 0);
     if (lines.length <= 1) return []; // Check if there's more than just the header
@@ -186,7 +238,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onUploadSuccess }) => {
         location: location,
         filename: file.name,
         user_id: user.id,
-        time: row.time ? new Date(row.time).toISOString() : new Date().toISOString(),
+        time: row.time ? parseDateFromCSV(row.time).toISOString() : new Date().toISOString(),
         type: toString(row.type),
         din1: toNumber(row.din1),
         din2: toNumber(row.din2),
