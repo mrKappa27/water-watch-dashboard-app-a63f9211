@@ -1,10 +1,12 @@
+
 import React, { useMemo, useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, AlertTriangle, XCircle } from 'lucide-react';
+import { CheckCircle, AlertTriangle, XCircle, Info } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from '@/contexts/LanguageContext';
 import { getLeakDetectionThresholds, LeakDetectionThresholds } from "@/utils/leakDetectionThresholds";
 import { loadUserChartPreferences, ChartPreferences } from "@/utils/chartPreferences";
 
@@ -32,6 +34,7 @@ interface NightlyConsumptionAnalysisProps {
 const NightlyConsumptionAnalysis = ({ dateFrom, dateTo }: NightlyConsumptionAnalysisProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [data, setData] = useState<DatabaseRecord[]>([]);
   const [statsData, setStatsData] = useState<StatsData>({ totalRecords: 0, locations: 0, latestUpdate: null });
   const [isLoading, setIsLoading] = useState(true);
@@ -45,21 +48,16 @@ const NightlyConsumptionAnalysis = ({ dateFrom, dateTo }: NightlyConsumptionAnal
       
       setIsLoading(true);
       try {
-        // Create end of day for dateTo
         const endOfDay = new Date(dateTo);
         endOfDay.setHours(23, 59, 59, 999);
 
-        // First, get the total count and latest record datetime with dedicated queries
-        // Note: RLS policies now handle admin access automatically
         const [countResult, latestResult, locationsResult] = await Promise.all([
-          // Get total count with date range
           supabase
             .from('water_consumption_metrics')
             .select('*', { count: 'exact', head: true })
             .gte('time', dateFrom.toISOString())
             .lte('time', endOfDay.toISOString()),
           
-          // Get latest record datetime with date range
           supabase
             .from('water_consumption_metrics')
             .select('time')
@@ -69,7 +67,6 @@ const NightlyConsumptionAnalysis = ({ dateFrom, dateTo }: NightlyConsumptionAnal
             .limit(1)
             .single(),
           
-          // Get unique locations count with date range
           supabase
             .from('water_consumption_metrics')
             .select('location')
@@ -90,7 +87,6 @@ const NightlyConsumptionAnalysis = ({ dateFrom, dateTo }: NightlyConsumptionAnal
           console.error('Error getting locations:', locationsResult.error);
         }
 
-        // Calculate stats
         const totalRecords = countResult.count || 0;
         const latestUpdate = latestResult.data?.time ? new Date(latestResult.data.time) : null;
         const uniqueLocations = new Set(locationsResult.data?.map(record => record.location).filter(Boolean)).size;
@@ -101,9 +97,7 @@ const NightlyConsumptionAnalysis = ({ dateFrom, dateTo }: NightlyConsumptionAnal
           latestUpdate
         });
 
-        console.log('Database stats with date range:', { totalRecords, uniqueLocations, latestUpdate, dateFrom, dateTo });
-
-        // Now fetch all records for analysis (using pagination if needed)
+        // Fetch all records for analysis
         let allData: DatabaseRecord[] = [];
         let from = 0;
         const batchSize = 1000;
@@ -137,7 +131,6 @@ const NightlyConsumptionAnalysis = ({ dateFrom, dateTo }: NightlyConsumptionAnal
           }
         }
 
-        console.log('Fetched filtered data from database:', allData.length, 'records');
         setData(allData);
       } catch (error) {
         console.error('Error fetching data from database:', error);
@@ -200,7 +193,6 @@ const NightlyConsumptionAnalysis = ({ dateFrom, dateTo }: NightlyConsumptionAnal
     return stats;
   }, [data]);
 
-  // Calculate location statistics with proper latest data
   const locationStats = useMemo(() => {
     const statsMap = new Map<string, {
       location: string;
@@ -249,10 +241,8 @@ const NightlyConsumptionAnalysis = ({ dateFrom, dateTo }: NightlyConsumptionAnal
       const thresholdsMap: Record<string, LeakDetectionThresholds> = {};
       const preferencesMap: Record<string, ChartPreferences> = {};
 
-      // For each location, try to load existing settings or use defaults
       await Promise.all(
         locationStats.map(async (stat) => {
-          // Try to load existing thresholds for this location
           const { data: existingThresholds } = await supabase
             .from('leak_detection_thresholds')
             .select('*')
@@ -262,7 +252,6 @@ const NightlyConsumptionAnalysis = ({ dateFrom, dateTo }: NightlyConsumptionAnal
           if (existingThresholds && existingThresholds.length > 0) {
             thresholdsMap[stat.location] = existingThresholds[0];
           } else {
-            // Default thresholds if none found
             thresholdsMap[stat.location] = {
               user_id: user.id,
               location: stat.location,
@@ -272,7 +261,6 @@ const NightlyConsumptionAnalysis = ({ dateFrom, dateTo }: NightlyConsumptionAnal
             };
           }
 
-          // Try to load existing chart preferences for this location
           const { data: existingPreferences } = await supabase
             .from('user_chart_preferences')
             .select('*')
@@ -285,7 +273,6 @@ const NightlyConsumptionAnalysis = ({ dateFrom, dateTo }: NightlyConsumptionAnal
               columnAliases: existingPreferences[0].column_aliases as Record<string, string>,
             };
           } else {
-            // Default to showing all deltas if no preferences found
             preferencesMap[stat.location] = {
               visibleParams: { DELTA1: true, DELTA2: true, DELTA3: true, DELTA4: true },
               columnAliases: {},
@@ -306,7 +293,6 @@ const NightlyConsumptionAnalysis = ({ dateFrom, dateTo }: NightlyConsumptionAnal
     
     const locationThresholds = thresholds[location];
     if (!locationThresholds) {
-      // Fallback to default thresholds
       if (value <= 0.5) return 'good';
       if (value <= 2.0) return 'warning';
       return 'high';
@@ -319,9 +305,14 @@ const NightlyConsumptionAnalysis = ({ dateFrom, dateTo }: NightlyConsumptionAnal
 
   const getEnabledDeltas = (location: string): number[] => {
     const preferences = chartPreferences[location];
-    if (!preferences) return [1, 2, 3, 4]; // Show all by default
+    if (!preferences) return [1, 2, 3, 4];
 
     return [1, 2, 3, 4].filter(i => preferences.visibleParams[`DELTA${i}`] !== false);
+  };
+
+  const getDeltaAlias = (location: string, deltaKey: string): string => {
+    const preferences = chartPreferences[location];
+    return preferences?.columnAliases?.[deltaKey] || deltaKey;
   };
 
   const getStatusIcon = (status: string) => {
@@ -340,13 +331,13 @@ const NightlyConsumptionAnalysis = ({ dateFrom, dateTo }: NightlyConsumptionAnal
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'good':
-        return <Badge variant="secondary" className="bg-green-100 text-green-800">Good</Badge>;
+        return <Badge variant="secondary" className="bg-green-100 text-green-800">{t('good')}</Badge>;
       case 'warning':
-        return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">Warning</Badge>;
+        return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">{t('warning')}</Badge>;
       case 'high':
-        return <Badge variant="destructive">High</Badge>;
+        return <Badge variant="destructive">{t('high')}</Badge>;
       default:
-        return <Badge variant="outline">No Data</Badge>;
+        return <Badge variant="outline">{t('no_data_available')}</Badge>;
     }
   };
 
@@ -354,12 +345,12 @@ const NightlyConsumptionAnalysis = ({ dateFrom, dateTo }: NightlyConsumptionAnal
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Nightly Water Consumption Analysis (2AM-5AM)</CardTitle>
-          <CardDescription>Loading filtered data from database...</CardDescription>
+          <CardTitle>{t('nightly_consumption_analysis')} (2AM-5AM)</CardTitle>
+          <CardDescription>{t('loading_data_from_database')}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="text-center py-8">
-            <div className="text-lg">Loading...</div>
+            <div className="text-lg">{t('loading')}</div>
           </div>
         </CardContent>
       </Card>
@@ -370,14 +361,14 @@ const NightlyConsumptionAnalysis = ({ dateFrom, dateTo }: NightlyConsumptionAnal
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Nightly Water Consumption Analysis (2AM-5AM)</CardTitle>
+          <CardTitle>{t('nightly_consumption_analysis')} (2AM-5AM)</CardTitle>
           <CardDescription>
-            No DELTA1-4 data available in the selected date range ({dateFrom.toLocaleDateString()} - {dateTo.toLocaleDateString()}) for leak detection analysis.
+            {t('no_data_available')} ({dateFrom.toLocaleDateString()} - {dateTo.toLocaleDateString()})
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="text-muted-foreground text-center py-8">
-            Try adjusting the date range filter or upload data files containing DELTA1-4 measurements.
+            {t('upload_some_csv_files')}
           </div>
         </CardContent>
       </Card>
@@ -388,14 +379,14 @@ const NightlyConsumptionAnalysis = ({ dateFrom, dateTo }: NightlyConsumptionAnal
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Nightly Water Consumption Analysis (2AM-5AM)</CardTitle>
+          <CardTitle>{t('nightly_consumption_analysis')} (2AM-5AM)</CardTitle>
           <CardDescription>
-            No DELTA1-4 data available in the 2AM-5AM window for the selected date range.
+            {t('no_data_available')}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="text-muted-foreground text-center py-8">
-            Found {statsData.totalRecords.toLocaleString()} records in the selected date range, but none in the 2AM-5AM time window.
+            {statsData.totalRecords.toLocaleString()} {t('records')} {t('in_selected_date_range')}
           </div>
         </CardContent>
       </Card>
@@ -405,26 +396,31 @@ const NightlyConsumptionAnalysis = ({ dateFrom, dateTo }: NightlyConsumptionAnal
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Nightly Water Consumption Analysis (2AM-5AM)</CardTitle>
+        <CardTitle>{t('nightly_consumption_analysis')} (2AM-5AM)</CardTitle>
         <CardDescription>
-          Minimum consumption values during low-usage hours from database for {dateFrom.toLocaleDateString()} - {dateTo.toLocaleDateString()}. 
-          Total records: {statsData.totalRecords.toLocaleString()}. 
-          Values near zero indicate no leaks, while higher values may suggest potential issues.
+          {t('leak_detection_analysis')} ({dateFrom.toLocaleDateString()} - {dateTo.toLocaleDateString()})
         </CardDescription>
       </CardHeader>
       <CardContent>
         <div className="space-y-6">
+          {/* Help Section */}
+          <div className="flex items-start gap-3 p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <Info className="w-5 h-5 text-blue-600 mt-0.5" />
+            <div className="text-sm text-blue-800">
+              <p className="font-medium mb-1">{t('leak_detection_help')}</p>
+              <p>{t('leak_status_explanation')}</p>
+            </div>
+          </div>
+
           {/* Database Statistics */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-muted/30 rounded-lg">
             <div className="text-center">
               <div className="text-2xl font-bold">{statsData.totalRecords.toLocaleString()}</div>
-              <div className="text-sm text-muted-foreground">Total Records</div>
-              <div className="text-xs text-muted-foreground">In date range</div>
+              <div className="text-sm text-muted-foreground">{t('total_records_analyzed')}</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold">{statsData.locations}</div>
-              <div className="text-sm text-muted-foreground">Locations</div>
-              <div className="text-xs text-muted-foreground">With data</div>
+              <div className="text-sm text-muted-foreground">{t('locations')}</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold">
@@ -433,47 +429,95 @@ const NightlyConsumptionAnalysis = ({ dateFrom, dateTo }: NightlyConsumptionAnal
                   : 'N/A'
                 }
               </div>
-              <div className="text-sm text-muted-foreground">Latest Data</div>
-              {statsData.latestUpdate && (
-                <div className="text-xs text-muted-foreground mt-1">
-                  {statsData.latestUpdate.toLocaleTimeString()}
-                </div>
-              )}
+              <div className="text-sm text-muted-foreground">{t('last_record')}</div>
             </div>
           </div>
 
-          {/* Dynamic Legend based on locations */}
+          {/* Thresholds Legend */}
           <div className="space-y-2">
-            <h5 className="text-sm font-medium">Thresholds by Location:</h5>
-            {Object.entries(thresholds).map(([location, threshold]) => (
-              <div key={location} className="flex flex-wrap gap-4 p-3 bg-muted/30 rounded-lg">
-                <h6 className="text-sm font-medium">{location}:</h6>
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-green-500" />
-                  <span className="text-xs">≤ {threshold.good_threshold}: Good</span>
+            <h5 className="text-sm font-medium">{t('thresholds_by_location')}</h5>
+            {Object.entries(thresholds).map(([location, threshold]) => {
+              const enabledDeltas = getEnabledDeltas(location);
+              if (enabledDeltas.length === 0) return null;
+              
+              return (
+                <div key={location} className="flex flex-wrap gap-4 p-3 bg-muted/30 rounded-lg">
+                  <h6 className="text-sm font-medium">{location}:</h6>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-green-500" />
+                    <span className="text-xs">≤ {threshold.good_threshold}: {t('good')}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-yellow-500" />
+                    <span className="text-xs">{threshold.good_threshold}-{threshold.warning_threshold}: {t('warning')}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <XCircle className="w-4 h-4 text-red-500" />
+                    <span className="text-xs">&gt; {threshold.warning_threshold}: {t('high')}</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {t('monitoring_parameters')}: {enabledDeltas.map(i => getDeltaAlias(location, `DELTA${i}`)).join(', ')}
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 text-yellow-500" />
-                  <span className="text-xs">{threshold.good_threshold}-{threshold.warning_threshold}: Warning</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <XCircle className="w-4 h-4 text-red-500" />
-                  <span className="text-xs">&gt; {threshold.warning_threshold}: High</span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {Object.entries(dailyNightMinStats).map(([location, days]) => {
             const locationStat = locationStats.find(stat => stat.location === location);
+            const enabledDeltas = getEnabledDeltas(location);
+            
+            // Skip locations with no enabled deltas
+            if (enabledDeltas.length === 0) return null;
+            
+            // Calculate summary statistics
+            const totalDays = Object.keys(days).length;
+            const locationThresholds = thresholds[location];
+            const goodThreshold = locationThresholds?.good_threshold || 0.5;
+            
+            const goodDays = Object.values(days).filter(dayStats => {
+              const deltaValues = enabledDeltas.map(i => dayStats[`DELTA${i}`]);
+              const validValues = deltaValues.filter(val => val !== null && val !== undefined) as number[];
+              return validValues.some(val => val <= goodThreshold);
+            }).length;
+
+            const warningDays = Object.values(days).filter(dayStats => {
+              const deltaValues = enabledDeltas.map(i => dayStats[`DELTA${i}`]);
+              const validValues = deltaValues.filter(val => val !== null && val !== undefined) as number[];
+              const hasGoodReading = validValues.some(val => val <= goodThreshold);
+              const allHighValues = validValues.length > 0 && validValues.every(val => val > (locationThresholds?.warning_threshold || 2.0));
+              return !hasGoodReading && !allHighValues && validValues.length > 0;
+            }).length;
+
+            const highDays = totalDays - goodDays - warningDays;
             
             return (
               <div key={location} className="space-y-4">
                 <div className="flex items-center justify-between border-b pb-2">
                   <h4 className="text-lg font-semibold">{location}</h4>
                   <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                    <span>{locationStat?.totalRecords || 0} total records</span>
-                    <span>Last: {locationStat?.lastUpdate?.toLocaleDateString() || 'N/A'}</span>
+                    <span>{locationStat?.totalRecords || 0} {t('records')}</span>
+                    <span>{t('last_record')} {locationStat?.lastUpdate?.toLocaleDateString() || 'N/A'}</span>
+                  </div>
+                </div>
+
+                {/* Analysis Summary for this location */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-3 bg-muted/20 rounded-lg">
+                  <div className="text-center">
+                    <div className="text-xl font-bold text-green-600">{goodDays}</div>
+                    <div className="text-xs text-muted-foreground">{t('good')} {t('days_analyzed')}</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xl font-bold text-yellow-600">{warningDays}</div>
+                    <div className="text-xs text-muted-foreground">{t('warning')} {t('days_analyzed')}</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xl font-bold text-red-600">{highDays}</div>
+                    <div className="text-xs text-muted-foreground">{t('potential_leak_days')}</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xl font-bold">{totalDays > 0 ? ((goodDays / totalDays) * 100).toFixed(0) : 0}%</div>
+                    <div className="text-xs text-muted-foreground">{t('good_days_percentage')}</div>
                   </div>
                 </div>
                 
@@ -482,22 +526,18 @@ const NightlyConsumptionAnalysis = ({ dateFrom, dateTo }: NightlyConsumptionAnal
                      <thead>
                        <tr className="bg-muted/50">
                          <th className="border border-border px-3 py-2 text-left">Date</th>
-                         {getEnabledDeltas(location).map(i => (
+                         {enabledDeltas.map(i => (
                            <th key={i} className="border border-border px-3 py-2 text-center">
-                             DELTA{i}
+                             {getDeltaAlias(location, `DELTA${i}`)}
                            </th>
                          ))}
-                         <th className="border border-border px-3 py-2 text-center">Daily Status</th>
+                         <th className="border border-border px-3 py-2 text-center">{t('daily_status')}</th>
                        </tr>
                      </thead>
                     <tbody>
                       {Object.entries(days)
-                        .sort(([dateA], [dateB]) => dateB.localeCompare(dateA)) // Sort by date descending
+                        .sort(([dateA], [dateB]) => dateB.localeCompare(dateA))
                          .map(([date, stats]) => {
-                           // Get enabled deltas for this location
-                           const enabledDeltas = getEnabledDeltas(location);
-                           
-                           // Calculate overall daily status using location-specific thresholds
                            const deltaValues = enabledDeltas.map(i => stats[`DELTA${i}`]);
                            const validValues = deltaValues.filter(val => val !== null && val !== undefined) as number[];
                            
@@ -516,7 +556,7 @@ const NightlyConsumptionAnalysis = ({ dateFrom, dateTo }: NightlyConsumptionAnal
                               <td className="border border-border px-3 py-2 font-medium">
                                 {new Date(date).toLocaleDateString()}
                               </td>
-                               {getEnabledDeltas(location).map(i => {
+                               {enabledDeltas.map(i => {
                                  const val = stats[`DELTA${i}`];
                                  const status = getConsumptionStatus(val, location);
                                  
@@ -547,29 +587,6 @@ const NightlyConsumptionAnalysis = ({ dateFrom, dateTo }: NightlyConsumptionAnal
                         })}
                     </tbody>
                   </table>
-                </div>
-
-                {/* Summary for this location */}
-                <div className="mt-4 p-3 bg-muted/30 rounded-lg">
-                  <div className="text-sm text-muted-foreground">
-                    <strong>Summary:</strong> {Object.keys(days).length} days analyzed from {locationStat?.totalRecords || 0} total records in selected date range. 
-                     {(() => {
-                       const totalDays = Object.keys(days).length;
-                       const locationThresholds = thresholds[location];
-                       const goodThreshold = locationThresholds?.good_threshold || 0.5;
-                       
-                       const goodDays = Object.values(days).filter(dayStats => {
-                         const enabledDeltas = getEnabledDeltas(location);
-                         const deltaValues = enabledDeltas.map(i => dayStats[`DELTA${i}`]);
-                         const validValues = deltaValues.filter(val => val !== null && val !== undefined) as number[];
-                         return validValues.some(val => val <= goodThreshold);
-                       }).length;
-                      
-                      return totalDays > 0 ? 
-                        ` ${goodDays} days (${((goodDays / totalDays) * 100).toFixed(0)}%) show good consumption patterns.` :
-                        ' No data available.';
-                    })()}
-                  </div>
                 </div>
               </div>
             );

@@ -12,11 +12,13 @@ import UserMenu from "@/components/auth/UserMenu";
 import DateRangeFilter from "@/components/DateRangeFilter";
 import { ParsedDataPoint } from "@/types/dataTypes";
 import { useAuth } from "@/hooks/useAuth";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { fetchDataFromDatabase } from "@/utils/supabaseSync";
 import { useToast } from "@/hooks/use-toast";
 
 const Index = () => {
   const { user, loading } = useAuth();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [parsedData, setParsedData] = useState<ParsedDataPoint[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(false);
@@ -102,7 +104,7 @@ const Index = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-lg">Loading...</div>
+        <div className="text-lg">{t('loading')}</div>
       </div>
     );
   }
@@ -116,9 +118,9 @@ const Index = () => {
       <div className="max-w-7xl mx-auto">
         <div className="mb-8 flex justify-between items-start">
           <div>
-            <h1 className="text-4xl font-bold mb-2">Datalogger Dashboard</h1>
+            <h1 className="text-4xl font-bold mb-2">{t('datalogger_dashboard')}</h1>
             <p className="text-xl text-muted-foreground">
-              Upload and analyze CSV files from your dataloggers
+              {t('upload_analyze_csv')}
             </p>
           </div>
           <div className="flex items-center gap-4">
@@ -127,7 +129,7 @@ const Index = () => {
               onClick={() => navigate('/auth')}
               className="lg:hidden"
             >
-              Account
+              {t('account')}
             </Button>
             <div className="hidden lg:block">
               <UserMenu />
@@ -138,9 +140,9 @@ const Index = () => {
         {/* Date Range Filter */}
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle>Date Range Filter</CardTitle>
+            <CardTitle>{t('date_range_filter')}</CardTitle>
             <CardDescription>
-              Filter data by date range to improve performance. Default shows last 7 days.
+              {t('filter_data_by_date')}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -155,18 +157,18 @@ const Index = () => {
 
         <Tabs defaultValue="upload" className="w-full">
           <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="upload">File Upload</TabsTrigger>
-            <TabsTrigger value="dashboard">Dashboard & Analytics</TabsTrigger>
-            <TabsTrigger value="leak-detection">Leak Detection</TabsTrigger>
-            <TabsTrigger value="leak-settings">Leak Settings</TabsTrigger>
+            <TabsTrigger value="upload">{t('file_upload')}</TabsTrigger>
+            <TabsTrigger value="dashboard">{t('dashboard_analytics')}</TabsTrigger>
+            <TabsTrigger value="leak-detection">{t('leak_detection')}</TabsTrigger>
+            <TabsTrigger value="leak-settings">{t('leak_settings')}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="upload" className="mt-6">
             <Card>
               <CardHeader>
-                <CardTitle>CSV File Upload</CardTitle>
+                <CardTitle>{t('csv_file_upload')}</CardTitle>
                 <CardDescription>
-                  Upload CSV files from your dataloggers. Files should be named as "location_datetime.csv"
+                  {t('upload_csv_files')}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -180,7 +182,7 @@ const Index = () => {
               <Card>
                 <CardContent className="pt-6">
                   <div className="text-center py-8">
-                    <div className="text-lg">Loading data from database...</div>
+                    <div className="text-lg">{t('loading_data_from_database')}</div>
                   </div>
                 </CardContent>
               </Card>
@@ -199,7 +201,7 @@ const Index = () => {
               <Card>
                 <CardContent className="pt-6">
                   <div className="text-center py-8">
-                    <div className="text-lg">Loading data from database...</div>
+                    <div className="text-lg">{t('loading_data_from_database')}</div>
                   </div>
                 </CardContent>
               </Card>

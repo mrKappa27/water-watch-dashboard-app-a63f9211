@@ -34,6 +34,8 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   const setLanguage = async (lang: string) => {
+    setLanguageState(lang); // Update immediately for better UX
+    
     if (!user) return;
 
     const { error } = await supabase
@@ -44,8 +46,10 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
         updated_at: new Date().toISOString()
       });
 
-    if (!error) {
-      setLanguageState(lang);
+    if (error) {
+      console.error('Error saving language preference:', error);
+      // Revert on error
+      setLanguageState(language);
     }
   };
 
@@ -128,6 +132,15 @@ const translations: Record<string, Record<string, string>> = {
     'warning': 'Warning',
     'high': 'High',
     'critical': 'Critical',
+    'leak_status_explanation': 'Status is based on minimum water consumption during 2AM-5AM hours when usage should be minimal',
+    'thresholds_by_location': 'Thresholds by Location:',
+    'days_analyzed': 'Days analyzed:',
+    'total_records_analyzed': 'Total records analyzed:',
+    'good_days_percentage': 'Good days percentage:',
+    'potential_leak_days': 'Potential leak days:',
+    'monitoring_parameters': 'Monitoring Parameters:',
+    'analysis_summary': 'Analysis Summary',
+    'leak_detection_help': 'Lower values indicate minimal nighttime consumption (good). Higher values may suggest leaks or unusual consumption patterns.',
     
     // Chart and Data
     'data_visualization': 'Data Visualization',
@@ -217,13 +230,22 @@ const translations: Record<string, Record<string, string>> = {
     'warning': 'Attenzione',
     'high': 'Alto',
     'critical': 'Critico',
+    'leak_status_explanation': 'Lo stato è basato sul consumo minimo di acqua durante le ore 2:00-5:00 quando l\'uso dovrebbe essere minimo',
+    'thresholds_by_location': 'Soglie per Posizione:',
+    'days_analyzed': 'Giorni analizzati:',
+    'total_records_analyzed': 'Record totali analizzati:',
+    'good_days_percentage': 'Percentuale giorni buoni:',
+    'potential_leak_days': 'Giorni con potenziali perdite:',
+    'monitoring_parameters': 'Parametri di Monitoraggio:',
+    'analysis_summary': 'Riepilogo Analisi',
+    'leak_detection_help': 'Valori bassi indicano consumo notturno minimo (buono). Valori alti possono suggerire perdite o modelli di consumo insoliti.',
     
     // Chart and Data
     'data_visualization': 'Visualizzazione Dati',
     'select_parameters': 'Seleziona parametri da visualizzare',
     'clear_all_data': 'Cancella Tutti i Dati',
     'are_you_sure': 'Sei sicuro?',
-    'this_will_clear_all_data': 'Questo canceller\u00e0 tutti i dati caricati. Questa azione non pu\u00f2 essere annullata.',
+    'this_will_clear_all_data': 'Questo cancellerà tutti i dati caricati. Questa azione non può essere annullata.',
     'cancel': 'Annulla',
     'continue': 'Continua',
     'no_data_to_display': 'Nessun dato da visualizzare',
