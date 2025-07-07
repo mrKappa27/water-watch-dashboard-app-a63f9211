@@ -1,4 +1,3 @@
-
 import React, { useMemo, useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -41,7 +40,6 @@ const NightlyConsumptionAnalysis = ({ dateFrom, dateTo }: NightlyConsumptionAnal
   const [thresholds, setThresholds] = useState<Record<string, LeakDetectionThresholds>>({});
   const [chartPreferences, setChartPreferences] = useState<Record<string, ChartPreferences>>({});
 
-  // Fetch data from database
   useEffect(() => {
     const fetchData = async () => {
       if (!user) return;
@@ -128,7 +126,7 @@ const NightlyConsumptionAnalysis = ({ dateFrom, dateTo }: NightlyConsumptionAnal
             allData = [...allData, ...dbData];
             hasMore = dbData.length === batchSize;
             from += batchSize;
-          }
+            }
         }
 
         setData(allData);
@@ -233,7 +231,6 @@ const NightlyConsumptionAnalysis = ({ dateFrom, dateTo }: NightlyConsumptionAnal
     return Array.from(statsMap.values());
   }, [data]);
 
-  // Load thresholds and chart preferences for each location
   useEffect(() => {
     const loadSettings = async () => {
       if (!user || locationStats.length === 0) return;
@@ -308,6 +305,26 @@ const NightlyConsumptionAnalysis = ({ dateFrom, dateTo }: NightlyConsumptionAnal
     if (!preferences) return [1, 2, 3, 4];
 
     return [1, 2, 3, 4].filter(i => preferences.visibleParams[`DELTA${i}`] !== false);
+  };
+
+  const hasNonZeroConsumption = (location: string, deltaIndex: number): boolean => {
+    const locationData = dailyNightMinStats[location];
+    if (!locationData) return false;
+
+    const deltaKey = `DELTA${deltaIndex}`;
+    
+    for (const dayStats of Object.values(locationData)) {
+      const value = dayStats[deltaKey];
+      if (value !== null && value !== undefined && value > 0) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  const getActiveDeltas = (location: string): number[] => {
+    const enabledDeltas = getEnabledDeltas(location);
+    return enabledDeltas.filter(i => hasNonZeroConsumption(location, i));
   };
 
   const getDeltaAlias = (location: string, deltaKey: string): string => {
@@ -437,8 +454,8 @@ const NightlyConsumptionAnalysis = ({ dateFrom, dateTo }: NightlyConsumptionAnal
           <div className="space-y-2">
             <h5 className="text-sm font-medium">{t('thresholds_by_location')}</h5>
             {Object.entries(thresholds).map(([location, threshold]) => {
-              const enabledDeltas = getEnabledDeltas(location);
-              if (enabledDeltas.length === 0) return null;
+              const activeDeltas = getActiveDeltas(location);
+              if (activeDeltas.length === 0) return null;
               
               return (
                 <div key={location} className="flex flex-wrap gap-4 p-3 bg-muted/30 rounded-lg">
@@ -456,7 +473,7 @@ const NightlyConsumptionAnalysis = ({ dateFrom, dateTo }: NightlyConsumptionAnal
                     <span className="text-xs">&gt; {threshold.warning_threshold}: {t('high')}</span>
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    {t('monitoring_parameters')}: {enabledDeltas.map(i => getDeltaAlias(location, `DELTA${i}`)).join(', ')}
+                    {t('monitoring_parameters')}: {activeDeltas.map(i => getDeltaAlias(location, `DELTA${i}`)).join(', ')}
                   </div>
                 </div>
               );
@@ -465,24 +482,22 @@ const NightlyConsumptionAnalysis = ({ dateFrom, dateTo }: NightlyConsumptionAnal
 
           {Object.entries(dailyNightMinStats).map(([location, days]) => {
             const locationStat = locationStats.find(stat => stat.location === location);
-            const enabledDeltas = getEnabledDeltas(location);
+            const activeDeltas = getActiveDeltas(location);
             
-            // Skip locations with no enabled deltas
-            if (enabledDeltas.length === 0) return null;
+            if (activeDeltas.length === 0) return null;
             
-            // Calculate summary statistics
             const totalDays = Object.keys(days).length;
             const locationThresholds = thresholds[location];
             const goodThreshold = locationThresholds?.good_threshold || 0.5;
             
             const goodDays = Object.values(days).filter(dayStats => {
-              const deltaValues = enabledDeltas.map(i => dayStats[`DELTA${i}`]);
+              const deltaValues = activeDeltas.map(i => dayStats[`DELTA${i}`]);
               const validValues = deltaValues.filter(val => val !== null && val !== undefined) as number[];
               return validValues.some(val => val <= goodThreshold);
             }).length;
 
             const warningDays = Object.values(days).filter(dayStats => {
-              const deltaValues = enabledDeltas.map(i => dayStats[`DELTA${i}`]);
+              const deltaValues = activeDeltas.map(i => dayStats[`DELTA${i}`]);
               const validValues = deltaValues.filter(val => val !== null && val !== undefined) as number[];
               const hasGoodReading = validValues.some(val => val <= goodThreshold);
               const allHighValues = validValues.length > 0 && validValues.every(val => val > (locationThresholds?.warning_threshold || 2.0));
@@ -526,7 +541,7 @@ const NightlyConsumptionAnalysis = ({ dateFrom, dateTo }: NightlyConsumptionAnal
                      <thead>
                        <tr className="bg-muted/50">
                          <th className="border border-border px-3 py-2 text-left">Date</th>
-                         {enabledDeltas.map(i => (
+                         {activeDeltas.map(i => (
                            <th key={i} className="border border-border px-3 py-2 text-center">
                              {getDeltaAlias(location, `DELTA${i}`)}
                            </th>
@@ -538,7 +553,7 @@ const NightlyConsumptionAnalysis = ({ dateFrom, dateTo }: NightlyConsumptionAnal
                       {Object.entries(days)
                         .sort(([dateA], [dateB]) => dateB.localeCompare(dateA))
                          .map(([date, stats]) => {
-                           const deltaValues = enabledDeltas.map(i => stats[`DELTA${i}`]);
+                           const deltaValues = activeDeltas.map(i => stats[`DELTA${i}`]);
                            const validValues = deltaValues.filter(val => val !== null && val !== undefined) as number[];
                            
                            const locationThresholds = thresholds[location];
@@ -556,7 +571,7 @@ const NightlyConsumptionAnalysis = ({ dateFrom, dateTo }: NightlyConsumptionAnal
                               <td className="border border-border px-3 py-2 font-medium">
                                 {new Date(date).toLocaleDateString()}
                               </td>
-                               {enabledDeltas.map(i => {
+                               {activeDeltas.map(i => {
                                  const val = stats[`DELTA${i}`];
                                  const status = getConsumptionStatus(val, location);
                                  

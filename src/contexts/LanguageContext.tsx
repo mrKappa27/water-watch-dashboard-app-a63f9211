@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -19,14 +18,18 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     const fetchUserLanguage = async () => {
       if (!user) return;
       
-      const { data, error } = await supabase
-        .from('user_language_preferences')
-        .select('language')
-        .eq('user_id', user.id)
-        .single();
+      try {
+        const { data, error } = await supabase
+          .from('user_language_preferences')
+          .select('language')
+          .eq('user_id', user.id)
+          .single();
 
-      if (data && !error) {
-        setLanguageState(data.language);
+        if (data && !error) {
+          setLanguageState(data.language);
+        }
+      } catch (error) {
+        console.error('Error fetching user language:', error);
       }
     };
 
@@ -34,22 +37,28 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   const setLanguage = async (lang: string) => {
-    setLanguageState(lang); // Update immediately for better UX
-    
-    if (!user) return;
+    if (!user) {
+      setLanguageState(lang); // Allow language change for non-authenticated users
+      return;
+    }
 
-    const { error } = await supabase
-      .from('user_language_preferences')
-      .upsert({
-        user_id: user.id,
-        language: lang,
-        updated_at: new Date().toISOString()
-      });
+    try {
+      const { error } = await supabase
+        .from('user_language_preferences')
+        .upsert({
+          user_id: user.id,
+          language: lang,
+          updated_at: new Date().toISOString()
+        });
 
-    if (error) {
-      console.error('Error saving language preference:', error);
-      // Revert on error
-      setLanguageState(language);
+      if (error) {
+        console.error('Error saving language preference:', error);
+        return; // Don't update state if save failed
+      }
+
+      setLanguageState(lang); // Only update state after successful save
+    } catch (error) {
+      console.error('Error updating language:', error);
     }
   };
 
