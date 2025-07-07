@@ -1,4 +1,3 @@
-
 import React, { useMemo, useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -325,14 +324,6 @@ const NightlyConsumptionAnalysis = ({ dateFrom, dateTo }: NightlyConsumptionAnal
     return [1, 2, 3, 4].filter(i => preferences.visibleParams[`DELTA${i}`] !== false);
   };
 
-  const getDeltaAlias = (location: string, deltaKey: string): string => {
-    const preferences = chartPreferences[location];
-    if (!preferences || !preferences.columnAliases[deltaKey]) {
-      return deltaKey; // Return original name if no alias
-    }
-    return preferences.columnAliases[deltaKey];
-  };
-
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'good':
@@ -475,10 +466,6 @@ const NightlyConsumptionAnalysis = ({ dateFrom, dateTo }: NightlyConsumptionAnal
 
           {Object.entries(dailyNightMinStats).map(([location, days]) => {
             const locationStat = locationStats.find(stat => stat.location === location);
-            const enabledDeltas = getEnabledDeltas(location);
-            
-            // Skip locations with no enabled deltas
-            if (enabledDeltas.length === 0) return null;
             
             return (
               <div key={location} className="space-y-4">
@@ -495,9 +482,9 @@ const NightlyConsumptionAnalysis = ({ dateFrom, dateTo }: NightlyConsumptionAnal
                      <thead>
                        <tr className="bg-muted/50">
                          <th className="border border-border px-3 py-2 text-left">Date</th>
-                         {enabledDeltas.map(i => (
+                         {getEnabledDeltas(location).map(i => (
                            <th key={i} className="border border-border px-3 py-2 text-center">
-                             {getDeltaAlias(location, `DELTA${i}`)}
+                             DELTA{i}
                            </th>
                          ))}
                          <th className="border border-border px-3 py-2 text-center">Daily Status</th>
@@ -507,7 +494,10 @@ const NightlyConsumptionAnalysis = ({ dateFrom, dateTo }: NightlyConsumptionAnal
                       {Object.entries(days)
                         .sort(([dateA], [dateB]) => dateB.localeCompare(dateA)) // Sort by date descending
                          .map(([date, stats]) => {
-                           // Calculate overall daily status using only enabled deltas and location-specific thresholds
+                           // Get enabled deltas for this location
+                           const enabledDeltas = getEnabledDeltas(location);
+                           
+                           // Calculate overall daily status using location-specific thresholds
                            const deltaValues = enabledDeltas.map(i => stats[`DELTA${i}`]);
                            const validValues = deltaValues.filter(val => val !== null && val !== undefined) as number[];
                            
@@ -526,7 +516,7 @@ const NightlyConsumptionAnalysis = ({ dateFrom, dateTo }: NightlyConsumptionAnal
                               <td className="border border-border px-3 py-2 font-medium">
                                 {new Date(date).toLocaleDateString()}
                               </td>
-                               {enabledDeltas.map(i => {
+                               {getEnabledDeltas(location).map(i => {
                                  const val = stats[`DELTA${i}`];
                                  const status = getConsumptionStatus(val, location);
                                  
@@ -569,15 +559,14 @@ const NightlyConsumptionAnalysis = ({ dateFrom, dateTo }: NightlyConsumptionAnal
                        const goodThreshold = locationThresholds?.good_threshold || 0.5;
                        
                        const goodDays = Object.values(days).filter(dayStats => {
+                         const enabledDeltas = getEnabledDeltas(location);
                          const deltaValues = enabledDeltas.map(i => dayStats[`DELTA${i}`]);
                          const validValues = deltaValues.filter(val => val !== null && val !== undefined) as number[];
                          return validValues.some(val => val <= goodThreshold);
                        }).length;
                       
-                      const enabledDeltaNames = enabledDeltas.map(i => getDeltaAlias(location, `DELTA${i}`)).join(', ');
-                      
                       return totalDays > 0 ? 
-                        ` ${goodDays} days (${((goodDays / totalDays) * 100).toFixed(0)}%) show good consumption patterns. Monitoring: ${enabledDeltaNames}.` :
+                        ` ${goodDays} days (${((goodDays / totalDays) * 100).toFixed(0)}%) show good consumption patterns.` :
                         ' No data available.';
                     })()}
                   </div>
