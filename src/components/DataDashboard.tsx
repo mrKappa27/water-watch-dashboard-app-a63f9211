@@ -110,7 +110,7 @@ const DataDashboard = ({ data, onClearData, dateFrom, dateTo }: DataDashboardPro
           <div className="text-sm text-muted-foreground">
             {data.length} points • {displayStats.length} locations
           </div>
-          <Button variant="ghost" size="sm" onClick={onClearData}>
+          <Button variant="water" size="sm" onClick={onClearData}>
             <TrendingUp className="w-4 h-4 mr-2" />
             Refresh
           </Button>
@@ -120,15 +120,15 @@ const DataDashboard = ({ data, onClearData, dateFrom, dateTo }: DataDashboardPro
       {!isLoadingStats && displayStats.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
           {displayStats.slice(0, 3).map(stats => (
-            <Card key={stats.location} className="p-4">
+            <Card key={stats.location} className="water-card water-shadow p-4 hover:water-glow transition-all duration-300">
               <div className="flex justify-between items-start">
                 <div>
-                  <h3 className="font-medium">{stats.location}</h3>
+                  <h3 className="font-medium text-primary">{stats.location}</h3>
                   <p className="text-sm text-muted-foreground">
                     {stats.totalRecords.toLocaleString()} records
                   </p>
                 </div>
-                <Badge variant="outline" className="text-xs">
+                <Badge variant="outline" className="text-xs border-primary/50">
                   {Object.keys(stats.averageValues).length} metrics
                 </Badge>
               </div>

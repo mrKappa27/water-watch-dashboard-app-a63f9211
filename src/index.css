@@ -6,89 +6,123 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Water Dashboard Professional Color Palette */
+    --background: 220 20% 97%;
+    --foreground: 220 15% 15%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 220 15% 15%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 220 15% 15%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    /* Water Blue Primary Colors */
+    --primary: 210 100% 35%;
+    --primary-foreground: 0 0% 100%;
+    --primary-light: 210 80% 45%;
+    --primary-dark: 210 100% 25%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    /* Professional Secondary Colors */
+    --secondary: 210 20% 90%;
+    --secondary-foreground: 220 15% 20%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 210 15% 94%;
+    --muted-foreground: 220 10% 45%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    /* Ocean Accent Colors */
+    --accent: 195 85% 45%;
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    /* Status Colors */
+    --success: 142 70% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 45 100% 55%;
+    --warning-foreground: 0 0% 100%;
+    --destructive: 0 85% 55%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --border: 210 20% 85%;
+    --input: 210 20% 90%;
+    --ring: 210 100% 35%;
 
-    --radius: 0.5rem;
+    --radius: 0.75rem;
 
-    --sidebar-background: 0 0% 98%;
+    /* Professional Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(210 100% 35%), hsl(195 85% 45%));
+    --gradient-subtle: linear-gradient(180deg, hsl(220 20% 97%), hsl(210 20% 95%));
+    --gradient-card: linear-gradient(145deg, hsl(0 0% 100%), hsl(210 15% 98%));
 
-    --sidebar-foreground: 240 5.3% 26.1%;
+    /* Professional Shadows */
+    --shadow-sm: 0 2px 4px -1px hsl(210 100% 35% / 0.1);
+    --shadow-md: 0 4px 12px -2px hsl(210 100% 35% / 0.15);
+    --shadow-lg: 0 10px 25px -3px hsl(210 100% 35% / 0.2);
+    --shadow-glow: 0 0 20px hsl(210 100% 35% / 0.3);
 
-    --sidebar-primary: 240 5.9% 10%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* Sidebar */
+    --sidebar-background: 210 30% 8%;
+    --sidebar-foreground: 210 20% 85%;
+    --sidebar-primary: 210 100% 45%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 25% 15%;
+    --sidebar-accent-foreground: 210 20% 85%;
+    --sidebar-border: 210 25% 20%;
+    --sidebar-ring: 210 100% 45%;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+    /* Dark Mode Water Dashboard */
+    --background: 220 30% 5%;
+    --foreground: 210 20% 90%;
 
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
+    --card: 220 25% 8%;
+    --card-foreground: 210 20% 90%;
 
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 220 25% 8%;
+    --popover-foreground: 210 20% 90%;
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    /* Bright Water Blue for Dark Mode */
+    --primary: 210 100% 55%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 220 20% 15%;
+    --secondary-foreground: 210 20% 85%;
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 220 20% 12%;
+    --muted-foreground: 210 15% 60%;
 
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 195 85% 55%;
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    --success: 142 70% 50%;
+    --success-foreground: 0 0% 100%;
+    --warning: 45 100% 60%;
+    --warning-foreground: 0 0% 100%;
+    --destructive: 0 85% 60%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
+    --border: 220 20% 20%;
+    --input: 220 20% 15%;
+    --ring: 210 100% 55%;
+
+    /* Dark Mode Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(210 100% 55%), hsl(195 85% 55%));
+    --gradient-subtle: linear-gradient(180deg, hsl(220 30% 5%), hsl(220 25% 8%));
+    --gradient-card: linear-gradient(145deg, hsl(220 25% 8%), hsl(220 20% 10%));
+
+    /* Dark Mode Shadows */
+    --shadow-sm: 0 2px 4px -1px hsl(0 0% 0% / 0.3);
+    --shadow-md: 0 4px 12px -2px hsl(0 0% 0% / 0.4);
+    --shadow-lg: 0 10px 25px -3px hsl(0 0% 0% / 0.5);
+    --shadow-glow: 0 0 20px hsl(210 100% 55% / 0.4);
+
+    --sidebar-background: 220 30% 4%;
+    --sidebar-foreground: 210 20% 85%;
+    --sidebar-primary: 210 100% 55%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-accent: 220 25% 10%;
+    --sidebar-accent-foreground: 210 20% 85%;
+    --sidebar-border: 220 20% 15%;
+    --sidebar-ring: 210 100% 55%;
   }
 }
 
@@ -99,5 +133,39 @@
 
   body {
     @apply bg-background text-foreground;
+    background: linear-gradient(135deg, hsl(var(--background)), hsl(var(--background)) 50%, hsl(var(--muted)) 100%);
+    min-height: 100vh;
+  }
+}
+
+@layer components {
+  /* Professional Water Dashboard Components */
+  .water-card {
+    @apply bg-card border border-border/50 shadow-md backdrop-blur-sm;
+    background: linear-gradient(145deg, hsl(var(--card)), hsl(var(--card)) 50%, hsl(var(--muted)/30) 100%);
+  }
+
+  .water-gradient {
+    background: var(--gradient-primary);
+  }
+
+  .water-shadow {
+    box-shadow: var(--shadow-md);
+  }
+
+  .water-glow {
+    box-shadow: var(--shadow-glow);
+  }
+
+  .status-good {
+    @apply bg-success text-success-foreground;
+  }
+
+  .status-warning {
+    @apply bg-warning text-warning-foreground;
+  }
+
+  .status-critical {
+    @apply bg-destructive text-destructive-foreground;
   }
 }
