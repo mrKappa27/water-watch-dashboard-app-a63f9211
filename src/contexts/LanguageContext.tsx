@@ -43,17 +43,29 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      const { error } = await supabase
+      // First try to update existing record
+      const { error: updateError } = await supabase
         .from('user_language_preferences')
-        .upsert({
-          user_id: user.id,
+        .update({
           language: lang,
           updated_at: new Date().toISOString()
-        });
+        })
+        .eq('user_id', user.id);
 
-      if (error) {
-        console.error('Error saving language preference:', error);
-        return; // Don't update state if save failed
+      // If update fails (no existing record), insert new one
+      if (updateError) {
+        const { error: insertError } = await supabase
+          .from('user_language_preferences')
+          .insert({
+            user_id: user.id,
+            language: lang,
+            updated_at: new Date().toISOString()
+          });
+
+        if (insertError) {
+          console.error('Error saving language preference:', insertError);
+          return; // Don't update state if save failed
+        }
       }
 
       setLanguageState(lang); // Only update state after successful save
