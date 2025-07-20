@@ -105,82 +105,43 @@ const DataDashboard = ({ data, onClearData, dateFrom, dateTo }: DataDashboardPro
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold">Dashboard Analytics</h2>
-          <p className="text-muted-foreground">
-            {data.length} data points from {displayStats.length} locations
-            {dateFrom && dateTo && (
-              <span className="block text-sm">
-                ({dateFrom.toLocaleDateString()} - {dateTo.toLocaleDateString()})
-              </span>
-            )}
-          </p>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-4">
+          <div className="text-sm text-muted-foreground">
+            {data.length} points • {displayStats.length} locations
+          </div>
+          <Button variant="ghost" size="sm" onClick={onClearData}>
+            <TrendingUp className="w-4 h-4 mr-2" />
+            Refresh
+          </Button>
         </div>
-        <Button variant="outline" onClick={onClearData}>
-          <Trash2 className="w-4 h-4 mr-2" />
-          Refresh Data
-        </Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {isLoadingStats ? (
-          [...Array(3)].map((_, i) => (
-            <Card key={i}>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg">Loading...</CardTitle>
-                <CardDescription>-- records</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Last Update:</span>
-                    <span>--</span>
-                  </div>
+      {!isLoadingStats && displayStats.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
+          {displayStats.slice(0, 3).map(stats => (
+            <Card key={stats.location} className="p-4">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="font-medium">{stats.location}</h3>
+                  <p className="text-sm text-muted-foreground">
+                    {stats.totalRecords.toLocaleString()} records
+                  </p>
                 </div>
-              </CardContent>
+                <Badge variant="outline" className="text-xs">
+                  {Object.keys(stats.averageValues).length} metrics
+                </Badge>
+              </div>
             </Card>
-          ))
-        ) : (
-          displayStats.map(stats => (
-            <Card key={stats.location}>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg">{stats.location}</CardTitle>
-                <CardDescription>
-                  {stats.totalRecords.toLocaleString()} records
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Last Update:</span>
-                    <span>{stats.lastUpdate.toLocaleDateString()}</span>
-                  </div>
-                  <div className="flex flex-wrap gap-1">
-                    {Object.keys(stats.averageValues).slice(0, 3).map(key => (
-                      <Badge key={key} variant="secondary" className="text-xs">
-                        {key}
-                      </Badge>
-                    ))}
-                    {Object.keys(stats.averageValues).length > 3 && (
-                      <Badge variant="outline" className="text-xs">
-                        +{Object.keys(stats.averageValues).length - 3} more
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))
-        )}
-      </div>
+          ))}
+        </div>
+      )}
 
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-3 max-w-lg">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="charts">Charts</TabsTrigger>
-          <TabsTrigger value="table">Data Table</TabsTrigger>
-          <TabsTrigger value="forecasting">Forecasting</TabsTrigger>
+          <TabsTrigger value="table">Table</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-6">
@@ -195,9 +156,6 @@ const DataDashboard = ({ data, onClearData, dateFrom, dateTo }: DataDashboardPro
           <DataTable data={data} />
         </TabsContent>
 
-        <TabsContent value="forecasting" className="mt-6">
-          <ForecastingPanel data={data} />
-        </TabsContent>
       </Tabs>
     </div>
   );

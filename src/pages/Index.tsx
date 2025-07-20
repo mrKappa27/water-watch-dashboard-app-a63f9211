@@ -6,8 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import FileUpload from "@/components/FileUpload";
 import DataDashboard from "@/components/DataDashboard";
-import NightlyConsumptionAnalysis from "@/components/NightlyConsumptionAnalysis";
-import LeakDetectionSettings from "@/components/LeakDetectionSettings";
+import LeakDetectionPanel from "@/components/LeakDetectionPanel";
 import UserMenu from "@/components/auth/UserMenu";
 import DateRangeFilter from "@/components/DateRangeFilter";
 import { ParsedDataPoint } from "@/types/dataTypes";
@@ -116,51 +115,32 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-background p-4">
       <div className="max-w-7xl mx-auto">
-        <div className="mb-8 flex justify-between items-start">
+        <div className="mb-6 flex justify-between items-center">
           <div>
-            <h1 className="text-4xl font-bold mb-2">{t('datalogger_dashboard')}</h1>
-            <p className="text-xl text-muted-foreground">
+            <h1 className="text-3xl font-bold">{t('datalogger_dashboard')}</h1>
+            <p className="text-muted-foreground mt-1">
               {t('upload_analyze_csv')}
             </p>
           </div>
-          <div className="flex items-center gap-4">
-            <Button 
-              variant="outline" 
-              onClick={() => navigate('/auth')}
-              className="lg:hidden"
-            >
-              {t('account')}
-            </Button>
-            <div className="hidden lg:block">
-              <UserMenu />
-            </div>
-          </div>
+          <UserMenu />
         </div>
 
-        {/* Date Range Filter */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>{t('date_range_filter')}</CardTitle>
-            <CardDescription>
-              {t('filter_data_by_date')}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <DateRangeFilter
-              dateFrom={dateFrom}
-              dateTo={dateTo}
-              onDateFromChange={setDateFrom}
-              onDateToChange={setDateTo}
-            />
-          </CardContent>
-        </Card>
+        {/* Simplified Date Range Filter */}
+        <div className="mb-6 flex items-center gap-4 p-4 bg-muted/50 rounded-lg">
+          <span className="text-sm font-medium">{t('date_range_filter')}:</span>
+          <DateRangeFilter
+            dateFrom={dateFrom}
+            dateTo={dateTo}
+            onDateFromChange={setDateFrom}
+            onDateToChange={setDateTo}
+          />
+        </div>
 
-        <Tabs defaultValue="upload" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="upload">{t('file_upload')}</TabsTrigger>
+        <Tabs defaultValue="dashboard" className="w-full">
+          <TabsList className="grid w-full grid-cols-3 max-w-md">
             <TabsTrigger value="dashboard">{t('dashboard_analytics')}</TabsTrigger>
             <TabsTrigger value="leak-detection">{t('leak_detection')}</TabsTrigger>
-            <TabsTrigger value="leak-settings">{t('leak_settings')}</TabsTrigger>
+            <TabsTrigger value="upload">{t('file_upload')}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="upload" className="mt-6">
@@ -206,13 +186,10 @@ const Index = () => {
                 </CardContent>
               </Card>
             ) : (
-              <NightlyConsumptionAnalysis dateFrom={dateFrom} dateTo={dateTo} />
+              <LeakDetectionPanel dateFrom={dateFrom} dateTo={dateTo} />
             )}
           </TabsContent>
 
-          <TabsContent value="leak-settings" className="mt-6">
-            <LeakDetectionSettings />
-          </TabsContent>
         </Tabs>
       </div>
     </div>
