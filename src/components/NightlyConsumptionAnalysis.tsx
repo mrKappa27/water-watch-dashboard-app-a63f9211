@@ -560,11 +560,14 @@ const NightlyConsumptionAnalysis = ({ dateFrom, dateTo }: NightlyConsumptionAnal
                            const goodThreshold = locationThresholds?.good_threshold || 0.5;
                            const warningThreshold = locationThresholds?.warning_threshold || 2.0;
                            
-                           const hasGoodReading = validValues.some(val => val <= goodThreshold);
-                           const allHighValues = validValues.length > 0 && validValues.every(val => val > warningThreshold);
-                           const dailyStatus = validValues.length === 0 ? 'no-data' : 
-                                             hasGoodReading ? 'good' : 
-                                             allHighValues ? 'high' : 'warning';
+                            const hasHighValue = validValues.some(val => val > warningThreshold);
+                            const hasWarningValue = validValues.some(val => val > goodThreshold && val <= warningThreshold);
+                            const allGoodValues = validValues.length > 0 && validValues.every(val => val <= goodThreshold);
+                            
+                            const dailyStatus = validValues.length === 0 ? 'no-data' : 
+                                              hasHighValue ? 'high' :
+                                              hasWarningValue ? 'warning' : 
+                                              allGoodValues ? 'good' : 'no-data';
 
                           return (
                             <tr key={date} className="hover:bg-muted/25">
