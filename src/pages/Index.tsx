@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import FileUpload from "@/components/FileUpload";
 import DataDashboard from "@/components/DataDashboard";
 import LeakDetectionPanel from "@/components/LeakDetectionPanel";
+import LocationsPanel from "@/components/LocationsPanel";
 import UserMenu from "@/components/auth/UserMenu";
 import DateRangeFilter from "@/components/DateRangeFilter";
 import { ParsedDataPoint } from "@/types/dataTypes";
@@ -139,9 +140,10 @@ const Index = () => {
         </div>
 
         <Tabs defaultValue="dashboard" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 max-w-md">
+          <TabsList className="grid w-full grid-cols-4 max-w-2xl">
             <TabsTrigger value="dashboard">{t('dashboard_analytics')}</TabsTrigger>
             <TabsTrigger value="leak-detection">{t('leak_detection')}</TabsTrigger>
+            <TabsTrigger value="locations">Locations</TabsTrigger>
             <TabsTrigger value="upload">{t('file_upload')}</TabsTrigger>
           </TabsList>
 
@@ -190,6 +192,10 @@ const Index = () => {
             ) : (
               <LeakDetectionPanel dateFrom={dateFrom} dateTo={dateTo} />
             )}
+          </TabsContent>
+
+          <TabsContent value="locations" className="mt-6">
+            <LocationsPanel />
           </TabsContent>
 
         </Tabs>
