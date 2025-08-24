@@ -87,13 +87,13 @@ export const getLocationDataSummary = async (
       end: new Date(lastRecord.time)
     };
 
-    // Get latest reading values
+    // Get latest reading values - handle null/0 values properly
     const latestReading = {
       datetime: new Date(lastRecord.time),
-      temp: lastRecord.temp || undefined,
-      vbat: lastRecord.vbat || undefined,
-      totalConsumption: lastRecord.tot1 || undefined,
-      flowRate: lastRecord.delta1 || undefined
+      temp: (lastRecord.temp !== null && lastRecord.temp !== undefined) ? lastRecord.temp : undefined,
+      vbat: (lastRecord.vbat !== null && lastRecord.vbat !== undefined) ? lastRecord.vbat : undefined,
+      totalConsumption: (lastRecord.tot1 !== null && lastRecord.tot1 !== undefined) ? lastRecord.tot1 : undefined,
+      flowRate: (lastRecord.delta1 !== null && lastRecord.delta1 !== undefined) ? lastRecord.delta1 : undefined
     };
 
     // Calculate averages from all data
@@ -115,19 +115,33 @@ export const getLocationDataSummary = async (
     const olderHalf = data.slice(0, midPoint);
     const recentHalf = data.slice(midPoint);
 
-    // Temperature trend
-    const olderTempAvg = olderHalf.filter(d => d.temp).reduce((a, b) => a + (b.temp || 0), 0) / olderHalf.filter(d => d.temp).length;
-    const recentTempAvg = recentHalf.filter(d => d.temp).reduce((a, b) => a + (b.temp || 0), 0) / recentHalf.filter(d => d.temp).length;
-    const tempDiff = recentTempAvg - olderTempAvg;
+    // Temperature trend - with safe calculations
+    const olderTemps = olderHalf.filter(d => d.temp !== null && d.temp !== undefined);
+    const recentTemps = recentHalf.filter(d => d.temp !== null && d.temp !== undefined);
     
-    // Consumption trend (using delta1 as flow rate)
-    const olderConsAvg = olderHalf.filter(d => d.delta1).reduce((a, b) => a + (b.delta1 || 0), 0) / olderHalf.filter(d => d.delta1).length;
-    const recentConsAvg = recentHalf.filter(d => d.delta1).reduce((a, b) => a + (b.delta1 || 0), 0) / recentHalf.filter(d => d.delta1).length;
-    const consDiff = recentConsAvg - olderConsAvg;
+    let temperatureTrend: 'up' | 'down' | 'stable' = 'stable';
+    if (olderTemps.length > 0 && recentTemps.length > 0) {
+      const olderTempAvg = olderTemps.reduce((a, b) => a + (b.temp || 0), 0) / olderTemps.length;
+      const recentTempAvg = recentTemps.reduce((a, b) => a + (b.temp || 0), 0) / recentTemps.length;
+      const tempDiff = recentTempAvg - olderTempAvg;
+      temperatureTrend = Math.abs(tempDiff) < 1 ? 'stable' : (tempDiff > 0 ? 'up' : 'down');
+    }
+    
+    // Consumption trend - with safe calculations  
+    const olderCons = olderHalf.filter(d => d.delta1 !== null && d.delta1 !== undefined);
+    const recentCons = recentHalf.filter(d => d.delta1 !== null && d.delta1 !== undefined);
+    
+    let consumptionTrend: 'up' | 'down' | 'stable' = 'stable';
+    if (olderCons.length > 0 && recentCons.length > 0) {
+      const olderConsAvg = olderCons.reduce((a, b) => a + (b.delta1 || 0), 0) / olderCons.length;
+      const recentConsAvg = recentCons.reduce((a, b) => a + (b.delta1 || 0), 0) / recentCons.length;
+      const consDiff = recentConsAvg - olderConsAvg;
+      consumptionTrend = Math.abs(consDiff) < 0.1 ? 'stable' : (consDiff > 0 ? 'up' : 'down');
+    }
 
     const trends = {
-      temperature: Math.abs(tempDiff) < 1 ? 'stable' as const : (tempDiff > 0 ? 'up' as const : 'down' as const),
-      consumption: Math.abs(consDiff) < 0.1 ? 'stable' as const : (consDiff > 0 ? 'up' as const : 'down' as const)
+      temperature: temperatureTrend,
+      consumption: consumptionTrend
     };
 
     // Determine status based on recency and data quality
