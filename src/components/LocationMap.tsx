@@ -9,6 +9,7 @@ import { MapPin, AlertCircle } from "lucide-react";
 import { LocationCoordinates } from "@/types/locationTypes";
 import { getLocationCoordinates } from "@/utils/locationCoordinates";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 
 interface LocationMapProps {
   selectedLocation?: LocationCoordinates | null;
@@ -27,7 +28,9 @@ const LocationMap: React.FC<LocationMapProps> = ({ selectedLocation }) => {
   });
   const [isLoadingMap, setIsLoadingMap] = useState(false);
   const { toast } = useToast();
+  const { user } = useAuth();
   const markersRef = useRef<mapboxgl.Marker[]>([]);
+  const summaryPopupRef = useRef<mapboxgl.Popup | null>(null);
 
   useEffect(() => {
     loadLocations();
@@ -153,37 +156,33 @@ const LocationMap: React.FC<LocationMapProps> = ({ selectedLocation }) => {
           border: 2px solid white;
           box-shadow: 0 2px 8px rgba(0,0,0,0.3);
           cursor: pointer;
+          transition: all 0.2s ease;
         ">
           ${location.location_name.charAt(0).toUpperCase()}
         </div>
       `;
 
-      const popup = new mapboxgl.Popup({
-        offset: 25,
-        closeButton: true,
-        closeOnClick: false
-      }).setHTML(`
-        <div style="padding: 8px; min-width: 200px;">
-          <h3 style="margin: 0 0 8px 0; font-weight: bold; color: hsl(var(--foreground));">
-            ${location.location_name}
-          </h3>
-          <p style="margin: 0 0 4px 0; font-size: 12px; color: hsl(var(--muted-foreground));">
-            Lat: ${location.latitude.toFixed(6)}
-          </p>
-          <p style="margin: 0 0 8px 0; font-size: 12px; color: hsl(var(--muted-foreground));">
-            Lng: ${location.longitude.toFixed(6)}
-          </p>
-          ${location.description ? `
-            <p style="margin: 0; font-size: 14px; color: hsl(var(--foreground));">
-              ${location.description}
-            </p>
-          ` : ''}
-        </div>
-      `);
+      // Add hover effect
+      el.addEventListener('mouseenter', () => {
+        if (el.firstElementChild) {
+          (el.firstElementChild as HTMLElement).style.transform = 'scale(1.2)';
+        }
+      });
+      
+      el.addEventListener('mouseleave', () => {
+        if (el.firstElementChild) {
+          (el.firstElementChild as HTMLElement).style.transform = 'scale(1)';
+        }
+      });
+
+      // Add click handler to show data summary
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        showLocationSummary(location);
+      });
 
       const marker = new mapboxgl.Marker(el)
         .setLngLat([location.longitude, location.latitude])
-        .setPopup(popup)
         .addTo(map.current!);
 
       markersRef.current.push(marker);
@@ -223,6 +222,147 @@ const LocationMap: React.FC<LocationMapProps> = ({ selectedLocation }) => {
 
   const resetMapView = () => {
     fitMapToLocations();
+  };
+
+  const showLocationSummary = async (location: LocationCoordinates) => {
+    if (!user) return;
+
+    // Close any existing popup
+    if (summaryPopupRef.current) {
+      summaryPopupRef.current.remove();
+    }
+
+    try {
+      // Fetch location data summary
+      const { getLocationDataSummary } = await import("@/utils/locationDataSummary");
+      const summary = await getLocationDataSummary(user.id, location.location_name);
+
+      if (!summary) {
+        // Show "no data" popup
+        const popup = new mapboxgl.Popup({
+          offset: 25,
+          closeButton: true,
+          closeOnClick: false,
+          maxWidth: '350px'
+        }).setHTML(`
+          <div style="padding: 16px; font-family: system-ui;">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+              <div style="width: 12px; height: 12px; border-radius: 50%; background: #ef4444;"></div>
+              <h3 style="margin: 0; font-weight: 600; color: hsl(var(--foreground));">
+                ${location.location_name}
+              </h3>
+            </div>
+            <p style="margin: 0; color: hsl(var(--muted-foreground)); font-size: 14px;">
+              No monitoring data available for this location.
+            </p>
+            ${location.description ? `
+              <p style="margin: 8px 0 0 0; color: hsl(var(--foreground)); font-size: 14px;">
+                ${location.description}
+              </p>
+            ` : ''}
+          </div>
+        `)
+        .setLngLat([location.longitude, location.latitude])
+        .addTo(map.current!);
+
+        summaryPopupRef.current = popup;
+        return;
+      }
+
+      // Show data summary popup
+      const statusColor = 
+        summary.status === 'active' ? '#10b981' : 
+        summary.status === 'warning' ? '#f59e0b' : '#ef4444';
+
+      const popup = new mapboxgl.Popup({
+        offset: 25,
+        closeButton: true,
+        closeOnClick: false,
+        maxWidth: '350px'
+      }).setHTML(`
+        <div style="padding: 16px; font-family: system-ui;">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+            <div style="width: 12px; height: 12px; border-radius: 50%; background: ${statusColor};"></div>
+            <h3 style="margin: 0; font-weight: 600; color: hsl(var(--foreground));">
+              ${location.location_name}
+            </h3>
+          </div>
+          
+          <div style="margin-bottom: 12px; font-size: 13px; color: hsl(var(--muted-foreground));">
+            Last update: ${summary.latestReading.datetime.toLocaleDateString()}
+          </div>
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px;">
+            <div>
+              <div style="font-size: 12px; color: hsl(var(--muted-foreground)); margin-bottom: 2px;">Records</div>
+              <div style="font-weight: 600; color: hsl(var(--foreground));">${summary.totalRecords.toLocaleString()}</div>
+            </div>
+            <div>
+              <div style="font-size: 12px; color: hsl(var(--muted-foreground)); margin-bottom: 2px;">Days Active</div>
+              <div style="font-weight: 600; color: hsl(var(--foreground));">
+                ${Math.ceil((summary.dateRange.end.getTime() - summary.dateRange.start.getTime()) / (1000 * 60 * 60 * 24))}
+              </div>
+            </div>
+          </div>
+
+          ${summary.latestReading.temp !== undefined || summary.latestReading.vbat !== undefined || 
+            summary.latestReading.totalConsumption !== undefined ? `
+            <div style="margin-bottom: 16px;">
+              <div style="font-size: 12px; color: hsl(var(--muted-foreground)); margin-bottom: 8px; font-weight: 500;">Latest Readings</div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 13px;">
+                ${summary.latestReading.temp !== undefined ? `
+                  <div style="display: flex; justify-content: space-between;">
+                    <span style="color: hsl(var(--muted-foreground));">🌡️ Temp</span>
+                    <span style="font-weight: 500; color: hsl(var(--foreground));">${summary.latestReading.temp.toFixed(1)}°C</span>
+                  </div>
+                ` : ''}
+                ${summary.latestReading.vbat !== undefined ? `
+                  <div style="display: flex; justify-content: space-between;">
+                    <span style="color: hsl(var(--muted-foreground));">🔋 Battery</span>
+                    <span style="font-weight: 500; color: hsl(var(--foreground));">${summary.latestReading.vbat.toFixed(2)}V</span>
+                  </div>
+                ` : ''}
+                ${summary.latestReading.totalConsumption !== undefined ? `
+                  <div style="display: flex; justify-content: space-between;">
+                    <span style="color: hsl(var(--muted-foreground));">💧 Total</span>
+                    <span style="font-weight: 500; color: hsl(var(--foreground));">${summary.latestReading.totalConsumption.toFixed(0)}L</span>
+                  </div>
+                ` : ''}
+                ${summary.latestReading.flowRate !== undefined ? `
+                  <div style="display: flex; justify-content: space-between;">
+                    <span style="color: hsl(var(--muted-foreground));">⚡ Flow</span>
+                    <span style="font-weight: 500; color: hsl(var(--foreground));">${summary.latestReading.flowRate.toFixed(1)}L/h</span>
+                  </div>
+                ` : ''}
+              </div>
+            </div>
+          ` : ''}
+
+          <div style="padding: 8px; background: hsl(var(--muted)); border-radius: 6px; text-align: center;">
+            <span style="font-size: 12px; font-weight: 500; color: hsl(var(--foreground)); text-transform: capitalize;">
+              Status: ${summary.status}
+            </span>
+          </div>
+        </div>
+      `)
+      .setLngLat([location.longitude, location.latitude])
+      .addTo(map.current!);
+
+      summaryPopupRef.current = popup;
+
+      // Clean up when popup closes
+      popup.on('close', () => {
+        summaryPopupRef.current = null;
+      });
+
+    } catch (error) {
+      console.error('Error loading location summary:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load location data",
+        variant: "destructive",
+      });
+    }
   };
 
   if (isLoading) {
@@ -313,6 +453,8 @@ const LocationMap: React.FC<LocationMapProps> = ({ selectedLocation }) => {
           </CardContent>
         </Card>
       )}
+
+      {/* No longer need the hidden container */}
     </div>
   );
 };
