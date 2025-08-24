@@ -19,8 +19,12 @@ const LocationMap: React.FC<LocationMapProps> = ({ selectedLocation }) => {
   const map = useRef<mapboxgl.Map | null>(null);
   const [locations, setLocations] = useState<LocationCoordinates[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [mapboxToken, setMapboxToken] = useState("");
-  const [showTokenInput, setShowTokenInput] = useState(true);
+  const [mapboxToken, setMapboxToken] = useState(() => {
+    return localStorage.getItem('mapbox-token') || "";
+  });
+  const [showTokenInput, setShowTokenInput] = useState(() => {
+    return !localStorage.getItem('mapbox-token');
+  });
   const [isLoadingMap, setIsLoadingMap] = useState(false);
   const { toast } = useToast();
   const markersRef = useRef<mapboxgl.Marker[]>([]);
@@ -28,6 +32,13 @@ const LocationMap: React.FC<LocationMapProps> = ({ selectedLocation }) => {
   useEffect(() => {
     loadLocations();
   }, []);
+
+  useEffect(() => {
+    // Auto-initialize map if we have a saved token and locations are loaded
+    if (mapboxToken && !map.current && !isLoading && !showTokenInput) {
+      initializeMap();
+    }
+  }, [mapboxToken, isLoading]);
 
   useEffect(() => {
     if (selectedLocation && map.current) {
@@ -87,6 +98,9 @@ const LocationMap: React.FC<LocationMapProps> = ({ selectedLocation }) => {
         addLocationMarkers();
         setShowTokenInput(false);
         setIsLoadingMap(false);
+        
+        // Save token to localStorage on successful initialization
+        localStorage.setItem('mapbox-token', mapboxToken.trim());
         
         if (locations.length > 0) {
           fitMapToLocations();
