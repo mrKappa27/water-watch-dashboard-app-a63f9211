@@ -269,11 +269,7 @@ const LocationMap: React.FC<LocationMapProps> = ({ selectedLocation }) => {
         return;
       }
 
-      // Show data summary popup
-      const statusColor = 
-        summary.status === 'active' ? '#10b981' : 
-        summary.status === 'warning' ? '#f59e0b' : '#ef4444';
-
+      // Show data summary popup - simplified to required fields
       const popup = new mapboxgl.Popup({
         offset: 25,
         closeButton: true,
@@ -281,34 +277,27 @@ const LocationMap: React.FC<LocationMapProps> = ({ selectedLocation }) => {
         maxWidth: '350px'
       }).setHTML(`
         <div style="padding: 16px; font-family: system-ui;">
-          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
-            <div style="width: 12px; height: 12px; border-radius: 50%; background: ${statusColor};"></div>
+          <div style="margin-bottom: 12px;">
             <h3 style="margin: 0; font-weight: 600; color: hsl(var(--foreground));">
               ${location.location_name}
             </h3>
           </div>
           
           <div style="margin-bottom: 12px; font-size: 13px; color: hsl(var(--muted-foreground));">
-            Last update: ${summary.latestReading.datetime.toLocaleDateString()}
+            Last record: ${summary.latestReading.datetime.toLocaleString()}
           </div>
           
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px;">
+          <div style="display: grid; grid-template-columns: 1fr; gap: 8px; margin-bottom: 16px;">
             <div>
-              <div style="font-size: 12px; color: hsl(var(--muted-foreground)); margin-bottom: 2px;">Records</div>
+              <div style="font-size: 12px; color: hsl(var(--muted-foreground)); margin-bottom: 2px;">Total records</div>
               <div style="font-weight: 600; color: hsl(var(--foreground));">${summary.totalRecords.toLocaleString()}</div>
-            </div>
-            <div>
-              <div style="font-size: 12px; color: hsl(var(--muted-foreground)); margin-bottom: 2px;">Days Active</div>
-              <div style="font-weight: 600; color: hsl(var(--foreground));">
-                ${Math.ceil((summary.dateRange.end.getTime() - summary.dateRange.start.getTime()) / (1000 * 60 * 60 * 24))}
-              </div>
             </div>
           </div>
 
           ${summary.latestReading.temp !== undefined || summary.latestReading.vbat !== undefined || 
-            summary.latestReading.totalConsumption !== undefined ? `
-            <div style="margin-bottom: 16px;">
-              <div style="font-size: 12px; color: hsl(var(--muted-foreground)); margin-bottom: 8px; font-weight: 500;">Latest Readings</div>
+            summary.latestReading.totalConsumption !== undefined || summary.latestReading.flowRate !== undefined ? `
+            <div>
+              <div style="font-size: 12px; color: hsl(var(--muted-foreground)); margin-bottom: 8px; font-weight: 500;">Last readings</div>
               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 13px;">
                 ${summary.latestReading.temp !== undefined ? `
                   <div style="display: flex; justify-content: space-between;">
@@ -337,12 +326,6 @@ const LocationMap: React.FC<LocationMapProps> = ({ selectedLocation }) => {
               </div>
             </div>
           ` : ''}
-
-          <div style="padding: 8px; background: hsl(var(--muted)); border-radius: 6px; text-align: center;">
-            <span style="font-size: 12px; font-weight: 500; color: hsl(var(--foreground)); text-transform: capitalize;">
-              Status: ${summary.status}
-            </span>
-          </div>
         </div>
       `)
       .setLngLat([location.longitude, location.latitude])
